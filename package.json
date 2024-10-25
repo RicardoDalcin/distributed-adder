@@ -1,0 +1,9 @@
+{
+  "name": "distributed-adder",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "make clean && make && ./dist/main"
+  },
+  "license": "ISC"
+}
+
