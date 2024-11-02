@@ -6,22 +6,10 @@
 #include <unistd.h>     // For close()
 #include <ifaddrs.h>
 
-#define BROADCAST_PORT 12345
+#include "socket/socket.hpp"
+
+#define BROADCAST_PORT 3000
 #define BUFFER_SIZE 1024
-
-std::string calculateBroadcastAddress(const std::string &ipAddress, const std::string &subnetMask)
-{
-    struct in_addr ip, mask, broadcast;
-
-    // Convert IP and mask to binary form
-    inet_aton(ipAddress.c_str(), &ip);
-    inet_aton(subnetMask.c_str(), &mask);
-
-    // Calculate broadcast address
-    broadcast.s_addr = (ip.s_addr & mask.s_addr) | ~mask.s_addr;
-
-    return inet_ntoa(broadcast);
-}
 
 std::string getLocalIPAddress()
 {
@@ -49,6 +37,9 @@ std::string getLocalIPAddress()
 
 int main()
 {
+    SocketInstance::SocketInstance socket = SocketInstance::SocketInstance();
+    SocketInstance::SocketInitResult initResult = socket.init();
+
     int sock;
     struct sockaddr_in addr, sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
@@ -71,10 +62,6 @@ int main()
     }
 
     std::string localIP = getLocalIPAddress();
-    std::string subnetMask = "255.255.255.0"; // Replace with your actual subnet mask
-    std::string broadcastIP = calculateBroadcastAddress(localIP, subnetMask);
-
-    std::cout << "Broadcast IP address: " << broadcastIP << "\n"; // Add this line
 
     // 3. Bind the socket to listen for broadcasts on the specified port
     addr.sin_family = AF_INET;
