@@ -8,6 +8,8 @@
 #define BROADCAST_PORT 12345
 #define BUFFER_SIZE 1024
 #define BROADCAST_MESSAGE "Hello, any server there?"
+#define IGNORE_BROADCAST true
+#define DIRECT_IP_ADDRESS ""
 
 int main()
 {
@@ -35,7 +37,12 @@ int main()
     // 3. Configure the broadcast address
     memset(&broadcast_addr, 0, sizeof(broadcast_addr));
     broadcast_addr.sin_family = AF_INET;
-    broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST); // Send to broadcast address
+
+    if (IGNORE_BROADCAST)
+        broadcast_addr.sin_addr.s_addr = inet_addr(DIRECT_IP_ADDRESS);
+    else
+        broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST); // Send to broadcast address
+
     broadcast_addr.sin_port = htons(BROADCAST_PORT);
 
     // 4. Send the broadcast message
