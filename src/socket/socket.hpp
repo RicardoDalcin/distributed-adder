@@ -10,7 +10,7 @@
 #include <ifaddrs.h>
 #include <functional>
 
-#define BROADCAST_PORT 3000
+#define BROADCAST_PORT 12345
 #define BUFFER_SIZE 1024
 
 namespace SocketInstance
@@ -81,13 +81,13 @@ namespace SocketInstance
 
     bool SocketInstance::createSocket()
     {
-        return (sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0;
+        return (sock = socket(AF_INET, SOCK_DGRAM, 0)) >= 0;
     }
 
     bool SocketInstance::enableBroadcast()
     {
         int broadcastEnable = 1;
-        return setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0;
+        return setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) >= 0;
     }
 
     bool SocketInstance::bindInterface()
@@ -96,7 +96,12 @@ namespace SocketInstance
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
         addr.sin_port = htons(BROADCAST_PORT);
 
-        return bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0;
+        return bind(sock, (struct sockaddr *)&addr, sizeof(addr)) >= 0;
+    }
+
+    int SocketInstance::receive(char *buffer, int bufferSize)
+    {
+        return recvfrom(sock, buffer, bufferSize, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
     }
 
     void SocketInstance::receiveCallback(const std::function<void(const std::string &data)> &callback)

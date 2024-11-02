@@ -8,7 +8,6 @@
 
 #include "socket/socket.hpp"
 
-#define BROADCAST_PORT 3000
 #define BUFFER_SIZE 1024
 
 std::string getLocalIPAddress()
@@ -42,12 +41,20 @@ int main()
 
     std::string localIP = getLocalIPAddress();
 
+    if (initResult != SocketInstance::SocketInitResult::Success)
+    {
+        std::cerr << "Socket initialization failed with code " << (int)initResult << std::endl;
+        return 1;
+    }
+
+    std::cout << "Listening to messages on port " << BROADCAST_PORT << "...\n";
+
     auto onReceive = [](const std::string &data)
     {
         std::cout << "Received message: " << data << "\n";
     };
 
     socket.receiveCallback(onReceive);
-
+    socket.closeConnection();
     return 0;
 }
