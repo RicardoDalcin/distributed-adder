@@ -42,31 +42,12 @@ int main()
 
     std::string localIP = getLocalIPAddress();
 
-    while (true)
+    auto onReceive = [](const std::string &data)
     {
-        // 4. Receive broadcast message
-        int recv_len = recvfrom(sock, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
-        if (recv_len < 0)
-        {
-            perror("Receive failed");
-            break;
-        }
+        std::cout << "Received message: " << data << "\n";
+    };
 
-        buffer[recv_len] = '\0';
-        std::cout << "Received message: " << buffer << "\n";
+    socket.receiveCallback(onReceive);
 
-        // 5. Send response back with our IP address
-        std::string localIP = getLocalIPAddress();
-        int sent_len = sendto(sock, localIP.c_str(), localIP.length(), 0, (struct sockaddr *)&sender_addr, sender_addr_len);
-        if (sent_len < 0)
-        {
-            perror("Send failed");
-            break;
-        }
-
-        std::cout << "Sent local IP address (" << localIP << ") to sender\n";
-    }
-
-    close(sock);
     return 0;
 }

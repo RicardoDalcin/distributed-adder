@@ -8,6 +8,7 @@
 #include <netinet/in.h> // Required for sockaddr_in
 #include <unistd.h>     // For close()
 #include <ifaddrs.h>
+#include <functional>
 
 #define BROADCAST_PORT 3000
 #define BUFFER_SIZE 1024
@@ -31,11 +32,14 @@ namespace SocketInstance
 
         int send(const char *message);
         int receive(char *buffer, int bufferSize);
+        void receiveCallback(const std::function<void(const std::string &data)> &callback);
+        void stopReceiving();
 
-        void close();
+        void closeConnection();
 
     private:
         int sock;
+        bool receiving = false;
         struct sockaddr_in addr, sender_addr;
         socklen_t sender_addr_len = sizeof(sender_addr);
 
@@ -52,7 +56,7 @@ namespace SocketInstance
 
     SocketInstance::~SocketInstance()
     {
-        close();
+        closeConnection();
     }
 
     SocketInitResult SocketInstance::init()
@@ -93,6 +97,36 @@ namespace SocketInstance
         addr.sin_port = htons(BROADCAST_PORT);
 
         return bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0;
+    }
+
+    void SocketInstance::receiveCallback(const std::function<void(const std::string &data)> &callback)
+    {
+        receiving = true;
+        char buffer[BUFFER_SIZE];
+
+        while (receiving)
+        {
+            int recv_len = recvfrom(sock, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
+            if (recv_len < 0)
+            {
+                std::cerr << "Receive failed" << std::endl;
+                stopReceiving();
+            }
+
+            buffer[recv_len] = '\0';
+            callback(buffer);
+        }
+    }
+
+    void SocketInstance::closeConnection()
+    {
+        close(sock);
+        sock = -1;
+    }
+
+    void SocketInstance::stopReceiving()
+    {
+        receiving = false;
     }
 }
 
