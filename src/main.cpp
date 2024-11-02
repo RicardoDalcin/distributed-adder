@@ -51,11 +51,21 @@ int main()
 
     std::cout << "Listening to messages on port " << BROADCAST_PORT << "...\n";
 
-    auto onReceive = [&counter](const std::string &data)
+    auto onReceive = [&counter, socket](const std::string &data, const struct sockaddr_in &sender_addr)
     {
-        std::cout << "Received message: " << data << "\n";
+        std::cout << "Received message: " << data << " from " << inet_ntoa(sender_addr.sin_addr) << "\n";
         counter += std::stoi(data);
         std::cout << "Counter: " << counter << "\n";
+
+        std::string localIP = getLocalIPAddress();
+        int sent_len = const_cast<SocketInstance::SocketInstance &>(socket).send(localIP.c_str(), sender_addr);
+        if (sent_len < 0)
+        {
+            std::cout << "Send failed" << std::endl;
+        }
+
+        sleep(5);
+        std::cout << "Stopped sleeping" << std::endl;
     };
 
     while (true)

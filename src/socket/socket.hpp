@@ -30,9 +30,9 @@ namespace SocketInstance
         ~SocketInstance();
         SocketInitResult init();
 
-        int send(const char *message);
+        int send(const char *message, const struct sockaddr_in &sender_addr);
         int receive(char *buffer, int bufferSize);
-        void receiveCallback(const std::function<void(const std::string &data)> &callback);
+        void receiveCallback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback);
         void stopReceiving();
 
         void closeConnection();
@@ -104,7 +104,12 @@ namespace SocketInstance
         return recvfrom(sock, buffer, bufferSize, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
     }
 
-    void SocketInstance::receiveCallback(const std::function<void(const std::string &data)> &callback)
+    int SocketInstance::send(const char *message, const struct sockaddr_in &sender_addr)
+    {
+        return sendto(sock, message, strlen(message), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
+    }
+
+    void SocketInstance::receiveCallback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback)
     {
         receiving = true;
         char buffer[BUFFER_SIZE];
@@ -119,7 +124,7 @@ namespace SocketInstance
             }
 
             buffer[recv_len] = '\0';
-            callback(buffer);
+            callback(buffer, sender_addr);
         }
     }
 
