@@ -4,12 +4,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <random>
 
 #define BROADCAST_PORT 12345
 #define BUFFER_SIZE 1024
 #define BROADCAST_MESSAGE "Hello, any server there?"
 #define IGNORE_BROADCAST true
-#define DIRECT_IP_ADDRESS ""
+#define DIRECT_IP_ADDRESS "192.168.0.5"
 
 int main()
 {
@@ -45,8 +46,14 @@ int main()
 
     broadcast_addr.sin_port = htons(BROADCAST_PORT);
 
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dis(0, 100);
+    int randomNumber = dis(gen);
+    const char *message = std::to_string(randomNumber).c_str();
+
     // 4. Send the broadcast message
-    if (sendto(sock, BROADCAST_MESSAGE, strlen(BROADCAST_MESSAGE), 0,
+    if (sendto(sock, message, strlen(message), 0,
                (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr)) < 0)
     {
         perror("Broadcast send failed");
@@ -54,7 +61,7 @@ int main()
         return 1;
     }
 
-    std::cout << "Broadcast message sent: " << BROADCAST_MESSAGE << "\n";
+    std::cout << "Broadcast message sent: " << message << "\n";
     std::cout << "Waiting for server response...\n";
 
     // 5. Wait for a response
