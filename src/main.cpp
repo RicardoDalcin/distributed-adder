@@ -36,6 +36,8 @@ std::string getLocalIPAddress()
 
 int main()
 {
+    int counter = 0;
+
     SocketInstance::SocketInstance socket = SocketInstance::SocketInstance();
     SocketInstance::SocketInitResult initResult = socket.init();
 
@@ -49,12 +51,18 @@ int main()
 
     std::cout << "Listening to messages on port " << BROADCAST_PORT << "...\n";
 
-    auto onReceive = [](const std::string &data)
+    auto onReceive = [&counter](const std::string &data)
     {
         std::cout << "Received message: " << data << "\n";
+        counter += std::stoi(data);
+        std::cout << "Counter: " << counter << "\n";
     };
 
-    socket.receiveCallback(onReceive);
+    while (true)
+    {
+        socket.receiveCallback(onReceive);
+    }
+
     socket.closeConnection();
     return 0;
 }
