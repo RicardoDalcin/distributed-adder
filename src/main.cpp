@@ -40,42 +40,7 @@ int main()
     SocketInstance::SocketInstance socket = SocketInstance::SocketInstance();
     SocketInstance::SocketInitResult initResult = socket.init();
 
-    int sock;
-    struct sockaddr_in addr, sender_addr;
-    socklen_t sender_addr_len = sizeof(sender_addr);
-    char buffer[BUFFER_SIZE];
-
-    // 1. Create a UDP socket
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-    {
-        perror("Socket creation failed");
-        return 1;
-    }
-
-    // 2. Enable broadcast on this socket
-    int broadcastEnable = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0)
-    {
-        perror("Error setting broadcast option");
-        close(sock);
-        return 1;
-    }
-
     std::string localIP = getLocalIPAddress();
-
-    // 3. Bind the socket to listen for broadcasts on the specified port
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(BROADCAST_PORT);
-
-    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    {
-        perror("Bind failed");
-        close(sock);
-        return 1;
-    }
-
-    std::cout << "Listening for broadcast messages on port " << BROADCAST_PORT << "...\n";
 
     while (true)
     {
