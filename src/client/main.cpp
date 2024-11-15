@@ -1,87 +1,103 @@
 #include <iostream>
 #include <cstring>
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <random>
+#include "client_socket.hpp"
 
-#define BROADCAST_PORT 12345
 #define BUFFER_SIZE 1024
-#define BROADCAST_MESSAGE "Hello, any server there?"
-#define IGNORE_BROADCAST true
-#define DIRECT_IP_ADDRESS "192.168.0.5"
+#define NUM_THREADS 3
+#define NUM_MESSAGES 1000
+
+pthread_mutex_t lock;
+ClientSocket::ClientSocket socket_inst = ClientSocket::ClientSocket();
+
+struct thread_info
+{
+    pthread_t id;
+    int num;
+};
+
+static void *thread_start(void *arg)
+{
+    struct thread_info *thread_info = (struct thread_info *)arg;
+    std::cout << "Thread " << thread_info->num << " started" << std::endl;
+
+    char buffer[BUFFER_SIZE];
+
+    for (int i = 0; i < NUM_MESSAGES; i++)
+    {
+        socket_inst.send("1");
+        // socket_inst.receive(buffer, BUFFER_SIZE);
+    }
+
+    return 0x0;
+}
 
 int main()
 {
-    int sock;
-    struct sockaddr_in broadcast_addr, response_addr;
-    socklen_t response_addr_len = sizeof(response_addr);
-    char buffer[BUFFER_SIZE];
+    pthread_attr_t attr;
+    void *res;
 
-    // 1. Create a UDP socket
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    struct thread_info thread_info[NUM_THREADS];
+
+    ClientSocket::SocketInitResult initResult = socket_inst.init();
+
+    if (initResult != ClientSocket::SocketInitResult::Success)
     {
-        perror("Socket creation failed");
+        std::cerr << "Socket initialization failed with code " << (int)initResult << std::endl;
+        return 0x0;
+    }
+
+    std::cout << "Listening to messages on port " << BROADCAST_PORT << "...\n";
+
+    int ret = pthread_mutex_init(&lock, NULL);
+    if (ret != 0)
+    {
+        std::cerr << "Mutex initialization failed with code " << ret << std::endl;
         return 1;
     }
 
-    // 2. Enable broadcast on this socket
-    int broadcastEnable = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0)
+    ret = pthread_attr_init(&attr);
+    if (ret != 0)
     {
-        perror("Error setting broadcast option");
-        close(sock);
+        std::cerr << "Attribute initialization failed with code " << ret << std::endl;
         return 1;
     }
 
-    // 3. Configure the broadcast address
-    memset(&broadcast_addr, 0, sizeof(broadcast_addr));
-    broadcast_addr.sin_family = AF_INET;
-
-    if (IGNORE_BROADCAST)
-        broadcast_addr.sin_addr.s_addr = inet_addr(DIRECT_IP_ADDRESS);
-    else
-        broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST); // Send to broadcast address
-
-    broadcast_addr.sin_port = htons(BROADCAST_PORT);
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> dis(0, 100);
-    int randomNumber = dis(gen);
-    const char *message = std::to_string(randomNumber).c_str();
-
-    // 4. Send the broadcast message
-    if (sendto(sock, message, strlen(message), 0,
-               (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr)) < 0)
+    for (int thread_num = 0; thread_num < NUM_THREADS; thread_num++)
     {
-        perror("Broadcast send failed");
-        close(sock);
+        thread_info[thread_num].num = thread_num + 1;
+
+        ret = pthread_create(&thread_info[thread_num].id, &attr, &thread_start, &thread_info[thread_num]);
+        if (ret != 0)
+        {
+            std::cerr << "Thread creation failed with code " << ret << std::endl;
+            return 1;
+        }
+    }
+
+    ret = pthread_attr_destroy(&attr);
+    if (ret != 0)
+    {
+        std::cerr << "Attribute destruction failed with code " << ret << std::endl;
         return 1;
     }
 
-    std::cout << "Broadcast message sent: " << message << "\n";
-    std::cout << "Waiting for server response...\n";
-
-    // 5. Wait for a response
-    int recv_len = recvfrom(sock, buffer, BUFFER_SIZE, 0,
-                            (struct sockaddr *)&response_addr, &response_addr_len);
-    if (recv_len < 0)
+    for (int thread_num = 0; thread_num < NUM_THREADS; thread_num++)
     {
-        perror("Receive failed");
-        close(sock);
-        return 1;
+        ret = pthread_join(thread_info[thread_num].id, &res);
+        if (ret != 0)
+        {
+            std::cerr << "Thread join failed with code " << ret << std::endl;
+            return 1;
+        }
+
+        std::cout << "Thread " << thread_info[thread_num].num << " joined" << std::endl;
+        free(res);
     }
 
-    buffer[recv_len] = '\0'; // Null-terminate the received message
-    std::cout << "Received response from server: " << buffer << "\n";
-
-    // 6. Print server IP address
-    char sender_ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &response_addr.sin_addr, sender_ip, sizeof(sender_ip));
-    std::cout << "Server IP Address: " << sender_ip << "\n";
-
-    close(sock);
+    pthread_mutex_destroy(&lock);
     return 0;
 }
