@@ -65,7 +65,7 @@ static void *thread_start(void *arg)
             std::cout << "Send failed" << std::endl;
         }
 
-        sleep(5);
+        // sleep(5);
         std::cout << "Stopped sleeping" << std::endl;
     };
 

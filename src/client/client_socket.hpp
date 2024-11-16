@@ -12,8 +12,6 @@
 
 #define BROADCAST_PORT 12345
 #define BUFFER_SIZE 1024
-#define IGNORE_BROADCAST true
-#define DIRECT_IP_ADDRESS "192.168.0.5"
 
 namespace ClientSocket
 {
@@ -94,12 +92,7 @@ namespace ClientSocket
   bool ClientSocket::bindInterface()
   {
     addr.sin_family = AF_INET;
-
-    if (IGNORE_BROADCAST)
-      addr.sin_addr.s_addr = inet_addr(DIRECT_IP_ADDRESS);
-    else
-      addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-
+    addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
     addr.sin_port = htons(BROADCAST_PORT);
 
     return true;

@@ -5,7 +5,7 @@ CXX := g++
 CXXFLAGS := -Wall -Wextra -std=c++17
 
 # Arquivos fonte e executável
-SRCS := src/main.cpp src/test.cpp
+SRCS := src/main.cpp
 TARGET := dist/main
 
 # Target padrão
