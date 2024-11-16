@@ -42,26 +42,29 @@ namespace SocketInstance
         ~SocketInstance();
         SocketInitResult init();
 
-        int send(const char *message, const struct sockaddr_in &sender_addr);
-        int send_broadcast(std::string message);
+        int send_to(const std::string message, const struct sockaddr_in &target_addr);
+        int send_to_server(const std::string message);
+        int send_broadcast(const std::string message);
+
+        void set_server_ip(const std::string server_ip);
 
         ReceivedMessage receive();
-        void receiveCallback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback);
-        void stopReceiving();
+        void receive_callback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback);
+        void stop_receiving();
 
-        void closeConnection();
+        void close_socket();
 
     private:
         int sock;
         int port;
         bool receiving = false;
-        struct sockaddr_in addr, sender_addr;
+        struct sockaddr_in receiver_addr, sender_addr, server_addr;
         socklen_t sender_addr_len = sizeof(sender_addr);
 
         std::string getLocalIPAddress();
-        bool createSocket();
-        bool enableBroadcast();
-        bool bindInterface();
+        bool create_socket();
+        bool enable_broadcast();
+        bool bind_interface();
     };
 
     SocketInstance::SocketInstance(int port)
@@ -72,22 +75,22 @@ namespace SocketInstance
 
     SocketInstance::~SocketInstance()
     {
-        closeConnection();
+        close_socket();
     }
 
     SocketInitResult SocketInstance::init()
     {
-        if (!createSocket())
+        if (!create_socket())
         {
             return SocketInitResult::CreateError;
         }
 
-        if (!enableBroadcast())
+        if (!enable_broadcast())
         {
             return SocketInitResult::SetOptionsError;
         }
 
-        if (!bindInterface())
+        if (!bind_interface())
         {
             return SocketInitResult::BindError;
         }
@@ -95,24 +98,24 @@ namespace SocketInstance
         return SocketInitResult::Success;
     }
 
-    bool SocketInstance::createSocket()
+    bool SocketInstance::create_socket()
     {
         return (sock = socket(AF_INET, SOCK_DGRAM, 0)) >= 0;
     }
 
-    bool SocketInstance::enableBroadcast()
+    bool SocketInstance::enable_broadcast()
     {
         int broadcastEnable = 1;
         return setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) >= 0;
     }
 
-    bool SocketInstance::bindInterface()
+    bool SocketInstance::bind_interface()
     {
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        addr.sin_port = htons(this->port);
+        receiver_addr.sin_family = AF_INET;
+        receiver_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        receiver_addr.sin_port = htons(this->port);
 
-        return bind(sock, (struct sockaddr *)&addr, sizeof(addr)) >= 0;
+        return bind(sock, (struct sockaddr *)&receiver_addr, sizeof(receiver_addr)) >= 0;
     }
 
     ReceivedMessage SocketInstance::receive()
@@ -136,12 +139,17 @@ namespace SocketInstance
         return message;
     }
 
-    int SocketInstance::send(const char *message, const struct sockaddr_in &sender_addr)
+    int SocketInstance::send_to(const std::string message, const struct sockaddr_in &sender_addr)
     {
-        return sendto(sock, message, strlen(message), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
+        return sendto(sock, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
     }
 
-    int SocketInstance::send_broadcast(std::string message)
+    int SocketInstance::send_to_server(const std::string message)
+    {
+        return sendto(sock, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    }
+
+    int SocketInstance::send_broadcast(const std::string message)
     {
         sockaddr_in addr;
 
@@ -152,7 +160,14 @@ namespace SocketInstance
         return sendto(sock, message.c_str(), message.length(), 0, (struct sockaddr *)&addr, sizeof(addr));
     }
 
-    void SocketInstance::receiveCallback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback)
+    void SocketInstance::set_server_ip(const std::string server_ip)
+    {
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = inet_addr(server_ip.c_str());
+        server_addr.sin_port = htons(this->port);
+    }
+
+    void SocketInstance::receive_callback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback)
     {
         receiving = true;
         char buffer[BUFFER_SIZE];
@@ -163,7 +178,7 @@ namespace SocketInstance
             if (recv_len < 0)
             {
                 std::cerr << "Receive failed" << std::endl;
-                stopReceiving();
+                stop_receiving();
             }
 
             buffer[recv_len] = '\0';
@@ -171,13 +186,13 @@ namespace SocketInstance
         }
     }
 
-    void SocketInstance::closeConnection()
+    void SocketInstance::close_socket()
     {
         close(sock);
         sock = -1;
     }
 
-    void SocketInstance::stopReceiving()
+    void SocketInstance::stop_receiving()
     {
         receiving = false;
     }

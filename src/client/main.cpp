@@ -1,11 +1,13 @@
 #include <iostream>
 #include "../socket/socket.hpp"
 #include "../logger/logger.hpp"
+#include "../lib/discovery.hpp"
 #include "../lib/utils.hpp"
 
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
+    Discovery::DiscoveryService discovery_service;
 
     if (argc < 2)
     {
@@ -30,24 +32,16 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::string client_ip = Utils::get_local_ip_address();
-    std::string server_ip = "";
+    std::string server_ip = discovery_service.find_server_ip(socket_instance);
 
-    socket_instance.send_broadcast("Hello, broadcast!");
-
-    bool wait_for_response = true;
-    while (wait_for_response)
+    if (server_ip.empty())
     {
-        auto message = socket_instance.receive();
-
-        if (message.is_valid && inet_ntoa(message.sender_addr.sin_addr) != client_ip)
-        {
-            wait_for_response = false;
-            server_ip = inet_ntoa(message.sender_addr.sin_addr);
-        }
+        logger.error("Discovery failed. No server IP address found.");
+        return 1;
     }
 
     logger.client_hello(server_ip);
+    socket_instance.set_server_ip(server_ip);
 
     std::string line;
     while (std::getline(std::cin, line))
@@ -56,6 +50,7 @@ int main(int argc, char *argv[])
         {
             int input_number = std::stoi(line);
             logger.log("Sent message: " + std::to_string(input_number));
+            socket_instance.send_to_server(std::to_string(input_number));
         }
         catch (std::invalid_argument &e)
         {

@@ -1,10 +1,12 @@
 #include <iostream>
 #include "../socket/socket.hpp"
+#include "../lib/discovery.hpp"
 #include "../logger/logger.hpp"
 
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
+    Discovery::DiscoveryService discovery_service;
 
     if (argc < 2)
     {
@@ -31,12 +33,18 @@ int main(int argc, char *argv[])
 
     logger.server_hello();
 
-    auto on_receive = [&logger, &socket_instance](const std::string &data, const struct sockaddr_in &sender_addr)
+    auto on_receive = [&logger, &socket_instance, &discovery_service](const std::string &data, const struct sockaddr_in &sender_addr)
     {
-        socket_instance.send("ping back", sender_addr);
+        if (discovery_service.is_discovery_message(data))
+        {
+            discovery_service.respond(socket_instance, sender_addr);
+            return;
+        }
+
+        logger.log("Received message that is not a discovery message: " + data);
     };
 
-    socket_instance.receiveCallback(on_receive);
+    socket_instance.receive_callback(on_receive);
 
     return 0;
 }
