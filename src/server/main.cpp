@@ -20,21 +20,16 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    logger.client_hello("<SERVER_IP>");
+    auto socket_instance = SocketInstance::SocketInstance();
+    auto init_result = socket_instance.init();
 
-    std::string line;
-    while (std::getline(std::cin, line))
+    if (init_result != SocketInstance::SocketInitResult::Success)
     {
-        try
-        {
-            int input_number = std::stoi(line);
-            logger.log("Sent message: " + std::to_string(input_number));
-        }
-        catch (std::invalid_argument &e)
-        {
-            logger.error("Invalid number: " + line);
-        }
+        logger.socket_init_error(init_result);
+        return 1;
     }
+
+    logger.server_hello();
 
     return 0;
 }
