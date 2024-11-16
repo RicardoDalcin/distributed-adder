@@ -42,3 +42,6 @@ obj
 *.app
 
 *.log
+
+.DS_Store
+*.sh
