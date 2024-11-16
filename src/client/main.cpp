@@ -1,6 +1,7 @@
 #include <iostream>
 #include "../socket/socket.hpp"
 #include "../logger/logger.hpp"
+#include "../lib/utils.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -20,7 +21,33 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    logger.client_hello("<SERVER_IP>");
+    auto socket_instance = SocketInstance::SocketInstance(port);
+    auto init_result = socket_instance.init();
+
+    if (init_result != SocketInstance::SocketInitResult::Success)
+    {
+        logger.socket_init_error(init_result);
+        return 1;
+    }
+
+    std::string client_ip = Utils::get_local_ip_address();
+    std::string server_ip = "";
+
+    socket_instance.send_broadcast("Hello, broadcast!");
+
+    bool wait_for_response = true;
+    while (wait_for_response)
+    {
+        auto message = socket_instance.receive();
+
+        if (message.is_valid && inet_ntoa(message.sender_addr.sin_addr) != client_ip)
+        {
+            wait_for_response = false;
+            server_ip = inet_ntoa(message.sender_addr.sin_addr);
+        }
+    }
+
+    logger.client_hello(server_ip);
 
     std::string line;
     while (std::getline(std::cin, line))

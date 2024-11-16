@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    auto socket_instance = SocketInstance::SocketInstance();
+    auto socket_instance = SocketInstance::SocketInstance(port);
     auto init_result = socket_instance.init();
 
     if (init_result != SocketInstance::SocketInitResult::Success)
@@ -30,6 +30,13 @@ int main(int argc, char *argv[])
     }
 
     logger.server_hello();
+
+    auto on_receive = [&logger, &socket_instance](const std::string &data, const struct sockaddr_in &sender_addr)
+    {
+        socket_instance.send("ping back", sender_addr);
+    };
+
+    socket_instance.receiveCallback(on_receive);
 
     return 0;
 }
