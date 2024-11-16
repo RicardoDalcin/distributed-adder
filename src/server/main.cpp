@@ -1,12 +1,21 @@
 #include <iostream>
+#include <map>
 #include "../socket/socket.hpp"
 #include "../lib/discovery.hpp"
 #include "../logger/logger.hpp"
+
+struct ClientEntry
+{
+    std::string address;
+    int last_req;
+    int last_sum;
+};
 
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
     Discovery::DiscoveryService discovery_service;
+    std::map<std::string, ClientEntry> client_map;
 
     if (argc < 2)
     {
@@ -33,11 +42,19 @@ int main(int argc, char *argv[])
 
     logger.server_hello();
 
-    auto on_receive = [&logger, &socket_instance, &discovery_service](const std::string &data, const struct sockaddr_in &sender_addr)
+    auto on_receive = [&logger, &socket_instance, &discovery_service, &client_map](const std::string &data, const struct sockaddr_in &sender_addr)
     {
         if (discovery_service.is_discovery_message(data))
         {
             discovery_service.respond(socket_instance, sender_addr);
+            std::string client_ip = inet_ntoa(sender_addr.sin_addr);
+
+            ClientEntry new_client;
+            new_client.address = client_ip;
+            new_client.last_req = 0;
+            new_client.last_sum = 0;
+
+            client_map.insert(std::pair<std::string, ClientEntry>(client_ip, new_client));
             return;
         }
 
