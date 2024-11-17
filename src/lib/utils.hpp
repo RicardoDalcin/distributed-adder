@@ -2,6 +2,7 @@
 #define UTILS_HPP
 
 #include <string>
+#include <array>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
@@ -9,34 +10,41 @@ std::string address_cache = "";
 
 namespace Utils
 {
-    std::string get_local_ip_address()
+    static const char DELIMITER = ';';
+
+    struct ParsedMessage
     {
-        if (address_cache.empty())
+        int fields_count;
+        std::array<std::string, 3> fields;
+    } typedef parsed_message;
+
+    bool starts_with(std::string str, std::string prefix)
+    {
+        return str.compare(0, prefix.length(), prefix) == 0;
+    }
+
+    parsed_message parse_message(std::string message)
+    {
+        parsed_message parsed_message;
+        parsed_message.fields_count = 0;
+
+        size_t pos = 0;
+        std::string token;
+
+        while ((pos = message.find(DELIMITER)) != std::string::npos)
         {
-            struct ifaddrs *interfaces = nullptr;
-            getifaddrs(&interfaces);
-
-            std::string local_ip;
-            for (struct ifaddrs *iface = interfaces; iface != nullptr; iface = iface->ifa_next)
-            {
-                if (iface->ifa_addr->sa_family == AF_INET)
-                { // Check for IPv4
-                    char address[INET_ADDRSTRLEN];
-                    inet_ntop(AF_INET, &((struct sockaddr_in *)iface->ifa_addr)->sin_addr, address, sizeof(address));
-                    if (strcmp(iface->ifa_name, "lo") != 0)
-                    { // Exclude loopback interface
-                        local_ip = address;
-                        break; // Get the first non-loopback address
-                    }
-                }
-            }
-
-            freeifaddrs(interfaces);
-            address_cache = local_ip;
+            token = message.substr(0, pos);
+            message.erase(0, pos + 1);
+            parsed_message.fields[parsed_message.fields_count] = token;
+            parsed_message.fields_count++;
         }
 
-        return address_cache;
+        parsed_message.fields[parsed_message.fields_count] = message;
+        parsed_message.fields_count++;
+
+        return parsed_message;
     }
+
 }
 
 #endif // UTILS_HPP

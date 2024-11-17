@@ -4,6 +4,7 @@
 
 #include "../socket/socket.hpp"
 #include "../lib/discovery.hpp"
+#include "../lib/processing.hpp"
 #include "../logger/logger.hpp"
 
 struct ClientEntry
@@ -17,6 +18,7 @@ int main(int argc, char *argv[])
 {
     Logger::Logger logger;
     Discovery::DiscoveryService discovery_service;
+    Processing::ProcessingService processing_service;
     std::map<std::string, ClientEntry> client_map;
 
     if (argc < 2)
@@ -44,6 +46,8 @@ int main(int argc, char *argv[])
 
     logger.server_hello();
 
+    int shared_sum = 0;
+
     while (true)
     {
         auto message = socket_instance.receive();
@@ -54,7 +58,7 @@ int main(int argc, char *argv[])
         auto data = message.data;
         auto sender_addr = message.sender_addr;
 
-        auto process_message = [&logger, &socket_instance, &discovery_service, &client_map, &data, &sender_addr]()
+        auto process_message = [&logger, &shared_sum, &socket_instance, &discovery_service, &processing_service, &client_map, data, sender_addr]()
         {
             if (discovery_service.is_discovery_message(data))
             {
@@ -70,9 +74,25 @@ int main(int argc, char *argv[])
                 return;
             }
 
-            std::string request_id = data.substr(0, data.find(";"));
-            std::string number = data.substr(data.find(";") + 1);
-            int input_number = std::stoi(number);
+            if (processing_service.is_request_message(data))
+            {
+                auto params = Utils::parse_message(data);
+
+                if (params.fields_count < 3)
+                {
+                    logger.error("Invalid request message: " + data);
+                    return;
+                }
+
+                int request_id = std::stoi(params.fields[1]);
+                int number = std::stoi(params.fields[2]);
+                shared_sum += number;
+                logger.log("Msg #" + std::to_string(request_id) + " from " + inet_ntoa(sender_addr.sin_addr) + ": " + std::to_string(number));
+
+                // std::this_thread::sleep_for(std::chrono::seconds(3));
+                processing_service.respond(socket_instance, sender_addr, request_id, shared_sum);
+                return;
+            }
         };
 
         std::thread(process_message).detach();

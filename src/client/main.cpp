@@ -2,14 +2,14 @@
 #include "../socket/socket.hpp"
 #include "../logger/logger.hpp"
 #include "../lib/discovery.hpp"
+#include "../lib/processing.hpp"
 #include "../lib/utils.hpp"
 
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
     Discovery::DiscoveryService discovery_service;
-
-    int request_id = 1;
+    Processing::ProcessingService processing_service;
 
     if (argc < 2)
     {
@@ -51,8 +51,7 @@ int main(int argc, char *argv[])
         try
         {
             int input_number = std::stoi(line);
-            socket_instance.send_to_server(std::to_string(request_id) + ";" + std::to_string(input_number));
-            request_id++;
+            processing_service.send_request(socket_instance, input_number);
         }
         catch (std::invalid_argument &e)
         {
