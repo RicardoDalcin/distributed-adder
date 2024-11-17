@@ -50,6 +50,7 @@ namespace Processing
 
     ProcessingService::~ProcessingService()
     {
+        pthread_mutex_destroy(&lock);
     }
 
     bool ProcessingService::is_request_message(std::string message)
