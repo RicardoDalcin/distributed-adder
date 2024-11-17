@@ -12,6 +12,12 @@
 
 namespace Processing
 {
+    struct SharedState
+    {
+        int num_reqs;
+        int total_sum;
+    } typedef shared_state_t;
+
     const std::string REQUEST_MESSAGE = "REQUEST";
     const std::string REQUEST_ACK = "REQUEST_ACK";
 
@@ -28,7 +34,7 @@ namespace Processing
 
     private:
         int request_id;
-        int shared_sum;
+        shared_state_t shared_state;
 
         Logger::Logger logger;
 
@@ -38,7 +44,8 @@ namespace Processing
     ProcessingService::ProcessingService()
     {
         request_id = 1;
-        shared_sum = 0;
+        shared_state.num_reqs = 0;
+        shared_state.total_sum = 0;
 
         int ret = pthread_mutex_init(&lock, NULL);
         if (ret != 0)
@@ -61,11 +68,12 @@ namespace Processing
     void ProcessingService::process_request(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr, int request_id, int number)
     {
         pthread_mutex_lock(&lock);
-        shared_sum += number;
+        shared_state.total_sum += number;
+        shared_state.num_reqs++;
         pthread_mutex_unlock(&lock);
 
-        respond(socket_instance, sender_addr, request_id, shared_sum);
-        logger.log("Sum: " + std::to_string(shared_sum));
+        respond(socket_instance, sender_addr, request_id, shared_state.total_sum);
+        logger.log("Sum: " + std::to_string(shared_state.total_sum) + " Num reqs: " + std::to_string(shared_state.num_reqs));
     }
 
     void ProcessingService::respond(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr, int request_id, int partial_sum)
