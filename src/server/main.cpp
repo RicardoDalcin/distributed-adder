@@ -1,6 +1,7 @@
 #include <iostream>
 #include <map>
 #include <thread>
+#include <pthread.h>
 
 #include "../socket/socket.hpp"
 #include "../lib/discovery.hpp"
@@ -12,14 +13,14 @@ struct ClientEntry
     std::string address;
     int last_req;
     int last_sum;
-};
+} typedef client_entry;
 
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
     Discovery::DiscoveryService discovery_service;
     Processing::ProcessingService processing_service;
-    std::map<std::string, ClientEntry> client_map;
+    std::map<std::string, client_entry> client_map;
 
     if (argc < 2)
     {
@@ -65,12 +66,12 @@ int main(int argc, char *argv[])
                 discovery_service.respond(socket_instance, sender_addr);
                 std::string client_ip = inet_ntoa(sender_addr.sin_addr);
 
-                ClientEntry new_client;
+                client_entry new_client;
                 new_client.address = client_ip;
                 new_client.last_req = 0;
                 new_client.last_sum = 0;
 
-                client_map.insert(std::pair<std::string, ClientEntry>(client_ip, new_client));
+                client_map.insert(std::pair<std::string, client_entry>(client_ip, new_client));
                 return;
             }
 
@@ -86,11 +87,8 @@ int main(int argc, char *argv[])
 
                 int request_id = std::stoi(params.fields[1]);
                 int number = std::stoi(params.fields[2]);
-                shared_sum += number;
-                logger.log("Msg #" + std::to_string(request_id) + " from " + inet_ntoa(sender_addr.sin_addr) + ": " + std::to_string(number));
 
-                // std::this_thread::sleep_for(std::chrono::seconds(3));
-                processing_service.respond(socket_instance, sender_addr, request_id, shared_sum);
+                processing_service.process_request(socket_instance, sender_addr, request_id, number);
                 return;
             }
         };

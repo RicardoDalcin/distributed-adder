@@ -46,17 +46,21 @@ int main(int argc, char *argv[])
     socket_instance.set_server_ip(server_ip);
 
     std::string line;
+    int sum = 0;
     while (std::getline(std::cin, line))
     {
         try
         {
             int input_number = std::stoi(line);
+            sum += input_number;
             processing_service.send_request(socket_instance, input_number);
         }
         catch (std::invalid_argument &e)
         {
             logger.error("Invalid number: " + line);
         }
+
+        logger.log("Sum: " + std::to_string(sum));
     }
 
     return 0;
