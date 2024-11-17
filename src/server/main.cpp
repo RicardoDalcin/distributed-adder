@@ -44,10 +44,18 @@ int main(int argc, char *argv[])
 
     logger.server_hello();
 
-    auto on_receive = [&logger, &socket_instance, &discovery_service, &client_map](const std::string &data, const struct sockaddr_in &sender_addr)
+    while (true)
     {
-        std::thread([&logger, &socket_instance, &discovery_service, &client_map, &data, &sender_addr]()
-                    {
+        auto message = socket_instance.receive();
+
+        if (!message.is_valid)
+            continue;
+
+        auto data = message.data;
+        auto sender_addr = message.sender_addr;
+
+        auto process_message = [&logger, &socket_instance, &discovery_service, &client_map, &data, &sender_addr]()
+        {
             if (discovery_service.is_discovery_message(data))
             {
                 discovery_service.respond(socket_instance, sender_addr);
@@ -65,12 +73,10 @@ int main(int argc, char *argv[])
             std::string request_id = data.substr(0, data.find(";"));
             std::string number = data.substr(data.find(";") + 1);
             int input_number = std::stoi(number);
+        };
 
-            logger.log("Msg #" + request_id + " from " + inet_ntoa(sender_addr.sin_addr) + ": " + std::to_string(input_number)); })
-            .detach();
-    };
-
-    socket_instance.receive_callback(on_receive);
+        std::thread(process_message).detach();
+    }
 
     return 0;
 }
