@@ -1,5 +1,7 @@
 #include <iostream>
 #include <map>
+#include <thread>
+
 #include "../socket/socket.hpp"
 #include "../lib/discovery.hpp"
 #include "../logger/logger.hpp"
@@ -44,21 +46,28 @@ int main(int argc, char *argv[])
 
     auto on_receive = [&logger, &socket_instance, &discovery_service, &client_map](const std::string &data, const struct sockaddr_in &sender_addr)
     {
-        if (discovery_service.is_discovery_message(data))
-        {
-            discovery_service.respond(socket_instance, sender_addr);
-            std::string client_ip = inet_ntoa(sender_addr.sin_addr);
+        std::thread([&logger, &socket_instance, &discovery_service, &client_map, &data, &sender_addr]()
+                    {
+            if (discovery_service.is_discovery_message(data))
+            {
+                discovery_service.respond(socket_instance, sender_addr);
+                std::string client_ip = inet_ntoa(sender_addr.sin_addr);
 
-            ClientEntry new_client;
-            new_client.address = client_ip;
-            new_client.last_req = 0;
-            new_client.last_sum = 0;
+                ClientEntry new_client;
+                new_client.address = client_ip;
+                new_client.last_req = 0;
+                new_client.last_sum = 0;
 
-            client_map.insert(std::pair<std::string, ClientEntry>(client_ip, new_client));
-            return;
-        }
+                client_map.insert(std::pair<std::string, ClientEntry>(client_ip, new_client));
+                return;
+            }
 
-        logger.log("Received message that is not a discovery message: " + data);
+            std::string request_id = data.substr(0, data.find(";"));
+            std::string number = data.substr(data.find(";") + 1);
+            int input_number = std::stoi(number);
+
+            logger.log("Msg #" + request_id + " from " + inet_ntoa(sender_addr.sin_addr) + ": " + std::to_string(input_number)); })
+            .detach();
     };
 
     socket_instance.receive_callback(on_receive);

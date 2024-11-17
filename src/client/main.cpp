@@ -9,6 +9,8 @@ int main(int argc, char *argv[])
     Logger::Logger logger;
     Discovery::DiscoveryService discovery_service;
 
+    int request_id = 1;
+
     if (argc < 2)
     {
         logger.error("Missing required argument: port");
@@ -49,8 +51,8 @@ int main(int argc, char *argv[])
         try
         {
             int input_number = std::stoi(line);
-            logger.log("Sent message: " + std::to_string(input_number));
-            socket_instance.send_to_server(std::to_string(input_number));
+            socket_instance.send_to_server(std::to_string(request_id) + ";" + std::to_string(input_number));
+            request_id++;
         }
         catch (std::invalid_argument &e)
         {
