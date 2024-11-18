@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <pthread.h>
+#include <thread>
 
 #include "../socket/socket.hpp"
 #include "../lib/utils.hpp"
@@ -57,6 +58,7 @@ namespace Processing
         void process_request(const struct sockaddr_in &sender_addr, int request_id, int number)
         {
             pthread_mutex_lock(&lock);
+            // std::this_thread::sleep_for(std::chrono::seconds(1));
             shared_state.total_sum += number;
             shared_state.num_reqs++;
             pthread_mutex_unlock(&lock);
@@ -75,6 +77,8 @@ namespace Processing
     class ProcessingServiceClient
     {
     private:
+        const int REQUEST_TIMEOUT_MS = 10;
+
         SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;
         int request_id;
@@ -84,6 +88,12 @@ namespace Processing
             : socket_instance(socket_instance)
         {
             request_id = 1;
+
+            if (socket_instance.set_timeout(REQUEST_TIMEOUT_MS) != 0)
+            {
+                logger.error("Failed to set timeout");
+                exit(1);
+            }
         }
 
         ~ProcessingServiceClient()
@@ -96,15 +106,57 @@ namespace Processing
             socket_instance.send_to_server(message);
 
             bool wait_for_response = true;
+            bool timed_out = false;
 
-            while (wait_for_response)
+            auto start_time = std::chrono::system_clock::now();
+
+            while (wait_for_response && !timed_out)
             {
                 auto message = socket_instance.receive();
 
                 if (message.is_valid && Utils::starts_with(message.data, REQUEST_ACK))
                 {
+                    auto params = Utils::parse_message(message.data);
+
+                    if (params.fields_count < 3)
+                    {
+                        continue;
+                    }
+
+                    int request_id = std::stoi(params.fields[1]);
+                    int partial_sum = std::stoi(params.fields[2]);
+
+                    if (request_id != this->request_id)
+                    {
+                        continue;
+                    }
+
                     wait_for_response = false;
+                    continue;
                 }
+
+                if (message.is_valid)
+                {
+                    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time).count();
+
+                    if (elapsed_time > REQUEST_TIMEOUT_MS)
+                    {
+                        timed_out = true;
+                        continue;
+                    }
+                }
+
+                if (!message.is_valid)
+                {
+                    timed_out = true;
+                    continue;
+                }
+            }
+
+            if (timed_out)
+            {
+                send_request(number);
+                return;
             }
 
             request_id++;

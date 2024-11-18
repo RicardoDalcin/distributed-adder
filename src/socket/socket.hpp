@@ -9,6 +9,7 @@
 #include <unistd.h>     // For close()
 #include <ifaddrs.h>
 #include <functional>
+#include <sys/time.h>
 
 #define BUFFER_SIZE 1024
 
@@ -41,6 +42,7 @@ namespace SocketInstance
         SocketInstance(int port);
         ~SocketInstance();
         SocketInitResult init();
+        int set_timeout(int timeout_ms);
 
         int send_to(const std::string message, const struct sockaddr_in &target_addr);
         int send_to_server(const std::string message);
@@ -49,15 +51,12 @@ namespace SocketInstance
         void set_server_ip(const std::string server_ip);
 
         ReceivedMessage receive();
-        void receive_callback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback);
-        void stop_receiving();
 
         void close_socket();
 
     private:
         int sock;
         int port;
-        bool receiving = false;
         struct sockaddr_in receiver_addr, sender_addr, server_addr;
         socklen_t sender_addr_len = sizeof(sender_addr);
 
@@ -96,6 +95,15 @@ namespace SocketInstance
         }
 
         return SocketInitResult::Success;
+    }
+
+    int SocketInstance::set_timeout(int timeout_ms)
+    {
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+        return setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     }
 
     bool SocketInstance::create_socket()
@@ -167,35 +175,12 @@ namespace SocketInstance
         server_addr.sin_port = htons(this->port);
     }
 
-    void SocketInstance::receive_callback(const std::function<void(const std::string &data, const struct sockaddr_in &sender_addr)> &callback)
-    {
-        receiving = true;
-        char buffer[BUFFER_SIZE];
-
-        while (receiving)
-        {
-            int recv_len = recvfrom(sock, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
-            if (recv_len < 0)
-            {
-                std::cerr << "Receive failed" << std::endl;
-                stop_receiving();
-            }
-
-            buffer[recv_len] = '\0';
-            callback(buffer, sender_addr);
-        }
-    }
-
     void SocketInstance::close_socket()
     {
         close(sock);
         sock = -1;
     }
 
-    void SocketInstance::stop_receiving()
-    {
-        receiving = false;
-    }
 }
 
 #endif // SOCKET_HPP
