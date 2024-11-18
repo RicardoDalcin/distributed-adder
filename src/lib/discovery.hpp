@@ -14,8 +14,15 @@ namespace Discovery
 
     class DiscoveryServiceServer
     {
+    private:
+        SocketInstance::SocketInstance &socket_instance;
+
     public:
-        DiscoveryServiceServer() {}
+        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance)
+            : socket_instance(socket_instance)
+        {
+        }
+
         ~DiscoveryServiceServer() {}
 
         bool is_discovery_message(std::string message)
@@ -23,21 +30,24 @@ namespace Discovery
             return message == DISCOVERY_MESSAGE;
         }
 
-        void respond(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr)
+        void respond(const struct sockaddr_in &sender_addr)
         {
             socket_instance.send_to(DISCOVERY_RESPONSE, sender_addr);
         }
-
-    private:
     };
 
     class DiscoveryServiceClient
     {
+    private:
+        SocketInstance::SocketInstance &socket_instance;
+
     public:
-        DiscoveryServiceClient() {}
+        DiscoveryServiceClient(SocketInstance::SocketInstance &socket_instance)
+            : socket_instance(socket_instance) {}
+
         ~DiscoveryServiceClient() {}
 
-        std::string find_server_ip(SocketInstance::SocketInstance &socket_instance)
+        std::string find_server_ip()
         {
             socket_instance.send_broadcast(DISCOVERY_MESSAGE);
 
@@ -57,8 +67,6 @@ namespace Discovery
 
             return server_ip;
         }
-
-    private:
     };
 }
 

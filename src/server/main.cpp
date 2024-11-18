@@ -18,9 +18,6 @@ struct ClientEntry
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
-    Discovery::DiscoveryServiceServer discovery_service;
-    Processing::ProcessingServiceServer processing_service;
-    std::map<std::string, client_entry> client_map;
 
     if (argc < 2)
     {
@@ -45,6 +42,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    Discovery::DiscoveryServiceServer discovery_service(socket_instance);
+    Processing::ProcessingServiceServer processing_service(socket_instance);
+
+    std::map<std::string, client_entry> client_map;
+
     logger.server_hello();
 
     int shared_sum = 0;
@@ -59,11 +61,11 @@ int main(int argc, char *argv[])
         auto data = message.data;
         auto sender_addr = message.sender_addr;
 
-        auto process_message = [&logger, &shared_sum, &socket_instance, &discovery_service, &processing_service, &client_map, data, sender_addr]()
+        auto process_message = [&logger, &shared_sum, &discovery_service, &processing_service, &client_map, data, sender_addr]()
         {
             if (discovery_service.is_discovery_message(data))
             {
-                discovery_service.respond(socket_instance, sender_addr);
+                discovery_service.respond(sender_addr);
                 std::string client_ip = inet_ntoa(sender_addr.sin_addr);
 
                 client_entry new_client;
@@ -88,7 +90,7 @@ int main(int argc, char *argv[])
                 int request_id = std::stoi(params.fields[1]);
                 int number = std::stoi(params.fields[2]);
 
-                processing_service.process_request(socket_instance, sender_addr, request_id, number);
+                processing_service.process_request(sender_addr, request_id, number);
                 return;
             }
         };

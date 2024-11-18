@@ -8,8 +8,6 @@
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
-    Discovery::DiscoveryServiceClient discovery_service;
-    Processing::ProcessingServiceClient processing_service;
 
     if (argc < 2)
     {
@@ -34,7 +32,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::string server_ip = discovery_service.find_server_ip(socket_instance);
+    Discovery::DiscoveryServiceClient discovery_service(socket_instance);
+    Processing::ProcessingServiceClient processing_service(socket_instance);
+
+    std::string server_ip = discovery_service.find_server_ip();
 
     if (server_ip.empty())
     {
@@ -53,7 +54,7 @@ int main(int argc, char *argv[])
         {
             int input_number = std::stoi(line);
             sum += input_number;
-            processing_service.send_request(socket_instance, input_number);
+            processing_service.send_request(input_number);
         }
         catch (std::invalid_argument &e)
         {

@@ -24,12 +24,14 @@ namespace Processing
     class ProcessingServiceServer
     {
     private:
+        SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;
         shared_state_t shared_state;
         pthread_mutex_t lock;
 
     public:
-        ProcessingServiceServer()
+        ProcessingServiceServer(SocketInstance::SocketInstance &socket_instance)
+            : socket_instance(socket_instance)
         {
             shared_state.num_reqs = 0;
             shared_state.total_sum = 0;
@@ -52,18 +54,18 @@ namespace Processing
             return Utils::starts_with(message, REQUEST_MESSAGE + Utils::DELIMITER);
         }
 
-        void process_request(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr, int request_id, int number)
+        void process_request(const struct sockaddr_in &sender_addr, int request_id, int number)
         {
             pthread_mutex_lock(&lock);
             shared_state.total_sum += number;
             shared_state.num_reqs++;
             pthread_mutex_unlock(&lock);
 
-            respond(socket_instance, sender_addr, request_id, shared_state.total_sum);
+            respond(sender_addr, request_id, shared_state.total_sum);
             logger.log("Sum: " + std::to_string(shared_state.total_sum) + " Num reqs: " + std::to_string(shared_state.num_reqs));
         }
 
-        void respond(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr, int request_id, int partial_sum)
+        void respond(const struct sockaddr_in &sender_addr, int request_id, int partial_sum)
         {
             std::string message = REQUEST_ACK + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(partial_sum);
             socket_instance.send_to(message, sender_addr);
@@ -73,11 +75,13 @@ namespace Processing
     class ProcessingServiceClient
     {
     private:
+        SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;
         int request_id;
 
     public:
-        ProcessingServiceClient()
+        ProcessingServiceClient(SocketInstance::SocketInstance &socket_instance)
+            : socket_instance(socket_instance)
         {
             request_id = 1;
         }
@@ -86,7 +90,7 @@ namespace Processing
         {
         }
 
-        void send_request(SocketInstance::SocketInstance &socket_instance, int number)
+        void send_request(int number)
         {
             std::string message = REQUEST_MESSAGE + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(number);
             socket_instance.send_to_server(message);
