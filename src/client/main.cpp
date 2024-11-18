@@ -8,8 +8,8 @@
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
-    Discovery::DiscoveryService discovery_service;
-    Processing::ProcessingService processing_service;
+    Discovery::DiscoveryServiceClient discovery_service;
+    Processing::ProcessingServiceClient processing_service;
 
     if (argc < 2)
     {

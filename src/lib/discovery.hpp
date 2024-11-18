@@ -12,57 +12,54 @@ namespace Discovery
     const std::string DISCOVERY_MESSAGE = "DISCOVERY";
     const std::string DISCOVERY_RESPONSE = "DISCOVERY_RESPONSE";
 
-    class DiscoveryService
+    class DiscoveryServiceServer
     {
     public:
-        DiscoveryService();
-        ~DiscoveryService();
+        DiscoveryServiceServer() {}
+        ~DiscoveryServiceServer() {}
 
-        bool is_discovery_message(std::string message);
-        void respond(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr);
-        std::string find_server_ip(SocketInstance::SocketInstance &socket_instance);
+        bool is_discovery_message(std::string message)
+        {
+            return message == DISCOVERY_MESSAGE;
+        }
+
+        void respond(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr)
+        {
+            socket_instance.send_to(DISCOVERY_RESPONSE, sender_addr);
+        }
 
     private:
     };
 
-    DiscoveryService::DiscoveryService()
+    class DiscoveryServiceClient
     {
-    }
+    public:
+        DiscoveryServiceClient() {}
+        ~DiscoveryServiceClient() {}
 
-    DiscoveryService::~DiscoveryService()
-    {
-    }
-
-    bool DiscoveryService::is_discovery_message(std::string message)
-    {
-        return message == DISCOVERY_MESSAGE;
-    }
-
-    void DiscoveryService::respond(SocketInstance::SocketInstance &socket_instance, const struct sockaddr_in &sender_addr)
-    {
-        socket_instance.send_to(DISCOVERY_RESPONSE, sender_addr);
-    }
-
-    std::string DiscoveryService::find_server_ip(SocketInstance::SocketInstance &socket_instance)
-    {
-        socket_instance.send_broadcast(DISCOVERY_MESSAGE);
-
-        std::string server_ip = "";
-        bool wait_for_response = true;
-
-        while (wait_for_response)
+        std::string find_server_ip(SocketInstance::SocketInstance &socket_instance)
         {
-            auto message = socket_instance.receive();
+            socket_instance.send_broadcast(DISCOVERY_MESSAGE);
 
-            if (message.is_valid && message.data == DISCOVERY_RESPONSE)
+            std::string server_ip = "";
+            bool wait_for_response = true;
+
+            while (wait_for_response)
             {
-                wait_for_response = false;
-                server_ip = inet_ntoa(message.sender_addr.sin_addr);
+                auto message = socket_instance.receive();
+
+                if (message.is_valid && message.data == DISCOVERY_RESPONSE)
+                {
+                    wait_for_response = false;
+                    server_ip = inet_ntoa(message.sender_addr.sin_addr);
+                }
             }
+
+            return server_ip;
         }
 
-        return server_ip;
-    }
+    private:
+    };
 }
 
 #endif // DISCOVERY_HPP

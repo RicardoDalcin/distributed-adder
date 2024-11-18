@@ -18,8 +18,8 @@ struct ClientEntry
 int main(int argc, char *argv[])
 {
     Logger::Logger logger;
-    Discovery::DiscoveryService discovery_service;
-    Processing::ProcessingService processing_service;
+    Discovery::DiscoveryServiceServer discovery_service;
+    Processing::ProcessingServiceServer processing_service;
     std::map<std::string, client_entry> client_map;
 
     if (argc < 2)
