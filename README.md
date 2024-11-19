@@ -9,10 +9,12 @@ Comandos docker:
   - `docker run --rm -it --privileged --net udp_network --ip 192.168.1.100 -v /mnt/c/Users/usuario/caminho-projeto:/workspace cpp-build-container-alpine`
   - Varia o IP pra cada um (.100, .101, etc)
 
-Todo
+To-do
 
 - Ver se enviar o tipo da requisição (DISCOVERY, REQUEST, REQUEST_ACK) impacta na performance
-- Talvez separar as classes de serviços em Client e Server
+- Mudar soma para uint64
+- Logger escutando mudanças na tabela de clientes
+- Mutex por cliente
 
 Dúvidas
 - Para timeout, usar receive não-bloqueante ou timeout do socket?
@@ -22,3 +24,5 @@ Dúvidas
 - Em caso de DUP, o servidor pode reenviar o ack?
 - Devemos exibir alguma mensagem se chegar uma request fora de ordem?
 - Na tabela de clientes, o last_sum 68 para 1.1.1.3 não deveria ser 111 (68 + 43)?
+- ctrl+C ou ctrl+D, preciso avisar o server que eu terminei?
+- Um lock por client para não bloquear outros IPs enquanto um processa

@@ -22,6 +22,7 @@ namespace Processing
 
     const std::string REQUEST_MESSAGE = "REQUEST";
     const std::string REQUEST_ACK = "REQUEST_ACK";
+    const std::string EXIT_MESSAGE = "EXIT";
 
     class ProcessingServiceServer
     {
@@ -93,6 +94,17 @@ namespace Processing
         {
             std::string message = REQUEST_ACK + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(partial_sum);
             socket_instance.send_to(message, sender_addr);
+        }
+
+        bool is_exit_message(std::string message)
+        {
+            return message == EXIT_MESSAGE;
+        }
+
+        void handle_exit_message(const struct sockaddr_in &sender_addr)
+        {
+            logger.log("Client disconnected");
+            client_map.remove_client(inet_ntoa(sender_addr.sin_addr));
         }
     };
 
@@ -184,6 +196,11 @@ namespace Processing
             }
 
             request_id++;
+        }
+
+        void disconnect()
+        {
+            socket_instance.send_to_server(EXIT_MESSAGE);
         }
     };
 }

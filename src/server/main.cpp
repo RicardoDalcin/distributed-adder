@@ -64,14 +64,6 @@ int main(int argc, char *argv[])
 
         auto process_message = [&logger, &shared_sum, &discovery_service, &processing_service, &client_map, data, sender_addr]()
         {
-            if (discovery_service.is_discovery_message(data))
-            {
-                discovery_service.respond(sender_addr);
-                std::string client_ip = inet_ntoa(sender_addr.sin_addr);
-                client_map.add_client(client_ip);
-                return;
-            }
-
             if (processing_service.is_request_message(data))
             {
                 auto params = Utils::parse_message(data);
@@ -86,6 +78,20 @@ int main(int argc, char *argv[])
                 int number = std::stoi(params.fields[2]);
 
                 processing_service.process_request(sender_addr, request_id, number);
+                return;
+            }
+
+            if (discovery_service.is_discovery_message(data))
+            {
+                discovery_service.respond(sender_addr);
+                std::string client_ip = inet_ntoa(sender_addr.sin_addr);
+                client_map.add_client(client_ip);
+                return;
+            }
+
+            if (processing_service.is_exit_message(data))
+            {
+                processing_service.handle_exit_message(sender_addr);
                 return;
             }
         };
