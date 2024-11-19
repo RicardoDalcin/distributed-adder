@@ -6,6 +6,7 @@
 #include "../socket/socket.hpp"
 #include "../lib/discovery.hpp"
 #include "../lib/processing.hpp"
+#include "../lib/client_map.hpp"
 #include "../logger/logger.hpp"
 
 struct ClientEntry
@@ -42,10 +43,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    Discovery::DiscoveryServiceServer discovery_service(socket_instance);
-    Processing::ProcessingServiceServer processing_service(socket_instance);
+    ClientMap::ClientMap client_map;
 
-    std::map<std::string, client_entry> client_map;
+    Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map);
+    Processing::ProcessingServiceServer processing_service(socket_instance, client_map);
 
     logger.server_hello();
 
@@ -67,13 +68,7 @@ int main(int argc, char *argv[])
             {
                 discovery_service.respond(sender_addr);
                 std::string client_ip = inet_ntoa(sender_addr.sin_addr);
-
-                client_entry new_client;
-                new_client.address = client_ip;
-                new_client.last_req = 0;
-                new_client.last_sum = 0;
-
-                client_map.insert(std::pair<std::string, client_entry>(client_ip, new_client));
+                client_map.add_client(client_ip);
                 return;
             }
 

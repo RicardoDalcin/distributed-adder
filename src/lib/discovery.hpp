@@ -6,6 +6,7 @@
 #include <ifaddrs.h>
 
 #include "../socket/socket.hpp"
+#include "../lib/client_map.hpp"
 
 namespace Discovery
 {
@@ -16,10 +17,11 @@ namespace Discovery
     {
     private:
         SocketInstance::SocketInstance &socket_instance;
+        ClientMap::ClientMap &client_map;
 
     public:
-        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance)
-            : socket_instance(socket_instance)
+        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map)
+            : socket_instance(socket_instance), client_map(client_map)
         {
         }
 

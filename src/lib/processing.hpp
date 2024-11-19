@@ -9,6 +9,7 @@
 
 #include "../socket/socket.hpp"
 #include "../lib/utils.hpp"
+#include "../lib/client_map.hpp"
 #include "../logger/logger.hpp"
 
 namespace Processing
@@ -26,13 +27,14 @@ namespace Processing
     {
     private:
         SocketInstance::SocketInstance &socket_instance;
+        ClientMap::ClientMap &client_map;
         Logger::Logger logger;
         shared_state_t shared_state;
         pthread_mutex_t lock;
 
     public:
-        ProcessingServiceServer(SocketInstance::SocketInstance &socket_instance)
-            : socket_instance(socket_instance)
+        ProcessingServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map)
+            : socket_instance(socket_instance), client_map(client_map)
         {
             shared_state.num_reqs = 0;
             shared_state.total_sum = 0;
@@ -57,13 +59,33 @@ namespace Processing
 
         void process_request(const struct sockaddr_in &sender_addr, int request_id, int number)
         {
+            int partial_sum = 0;
+
             pthread_mutex_lock(&lock);
-            // std::this_thread::sleep_for(std::chrono::seconds(1));
+            auto client = client_map.get_client(inet_ntoa(sender_addr.sin_addr));
+
+            if (client == nullptr)
+            {
+                pthread_mutex_unlock(&lock);
+                return;
+            }
+
+            if (request_id != client->last_req + 1)
+            {
+                pthread_mutex_unlock(&lock);
+                logger.error("Invalid request id: " + std::to_string(request_id) + " last_req: " + std::to_string(client->last_req));
+                return;
+            }
+
+            // std::this_thread::sleep_for(std::chrono::milliseconds(20));
             shared_state.total_sum += number;
             shared_state.num_reqs++;
+            partial_sum = shared_state.total_sum;
+            client_map.new_client_request(inet_ntoa(sender_addr.sin_addr), partial_sum);
             pthread_mutex_unlock(&lock);
 
-            respond(sender_addr, request_id, shared_state.total_sum);
+            respond(sender_addr, request_id, partial_sum);
+
             logger.log("Sum: " + std::to_string(shared_state.total_sum) + " Num reqs: " + std::to_string(shared_state.num_reqs));
         }
 
@@ -114,6 +136,8 @@ namespace Processing
             {
                 auto message = socket_instance.receive();
 
+                logger.log("Received message: " + message.data);
+
                 if (message.is_valid && Utils::starts_with(message.data, REQUEST_ACK))
                 {
                     auto params = Utils::parse_message(message.data);
@@ -124,7 +148,7 @@ namespace Processing
                     }
 
                     int request_id = std::stoi(params.fields[1]);
-                    int partial_sum = std::stoi(params.fields[2]);
+                    // int partial_sum = std::stoi(params.fields[2]);
 
                     if (request_id != this->request_id)
                     {
