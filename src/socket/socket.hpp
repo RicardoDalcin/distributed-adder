@@ -5,8 +5,8 @@
 #include <cstring>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <netinet/in.h> // Required for sockaddr_in
-#include <unistd.h>     // For close()
+#include <netinet/in.h>
+#include <unistd.h>
 #include <ifaddrs.h>
 #include <functional>
 #include <sys/time.h>
