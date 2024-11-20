@@ -17,7 +17,7 @@ namespace Processing
     struct SharedState
     {
         int num_reqs;
-        int total_sum;
+        uint64_t total_sum;
     } typedef shared_state_t;
 
     const std::string REQUEST_MESSAGE = "REQUEST";
@@ -43,7 +43,7 @@ namespace Processing
             int ret = pthread_mutex_init(&lock, NULL);
             if (ret != 0)
             {
-                logger.log("Mutex initialization failed with code " + std::to_string(ret));
+                logger.error("Mutex initialization failed with code " + std::to_string(ret));
                 exit(1);
             }
         }
@@ -61,6 +61,7 @@ namespace Processing
         void process_request(const struct sockaddr_in &sender_addr, int request_id, int number)
         {
             int partial_sum = 0;
+            int num_requests = 0;
 
             pthread_mutex_lock(&lock);
             auto client = client_map.get_client(inet_ntoa(sender_addr.sin_addr));
@@ -73,26 +74,43 @@ namespace Processing
 
             if (request_id != client->last_req + 1)
             {
+                int last_request = client->last_req;
+                int partial_sum = shared_state.total_sum;
+                int num_requests = shared_state.num_reqs;
+
                 pthread_mutex_unlock(&lock);
-                logger.error("Invalid request id: " + std::to_string(request_id) + " last_req: " + std::to_string(client->last_req));
+
+                respond(sender_addr, last_request, num_requests, partial_sum);
+
+                if (request_id <= last_request)
+                {
+                    logger.server_request(inet_ntoa(sender_addr.sin_addr), request_id, number, partial_sum, num_requests, true);
+                }
+
                 return;
             }
 
-            // std::this_thread::sleep_for(std::chrono::milliseconds(20));
             shared_state.total_sum += number;
             shared_state.num_reqs++;
             partial_sum = shared_state.total_sum;
+            num_requests = shared_state.num_reqs;
             client_map.new_client_request(inet_ntoa(sender_addr.sin_addr), partial_sum);
             pthread_mutex_unlock(&lock);
 
-            respond(sender_addr, request_id, partial_sum);
+            respond(sender_addr, request_id, num_requests, partial_sum);
 
-            logger.log("Sum: " + std::to_string(shared_state.total_sum) + " Num reqs: " + std::to_string(shared_state.num_reqs));
+            logger.server_request(inet_ntoa(sender_addr.sin_addr), request_id, number, partial_sum, num_requests);
         }
 
-        void respond(const struct sockaddr_in &sender_addr, int request_id, int partial_sum)
+        void respond(const struct sockaddr_in &sender_addr, int request_id, int num_requests, int partial_sum)
         {
-            std::string message = REQUEST_ACK + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(partial_sum);
+            // prettier-ignore
+            std::string message =
+                REQUEST_ACK + Utils::DELIMITER +
+                std::to_string(request_id) + Utils::DELIMITER +
+                std::to_string(num_requests) + Utils::DELIMITER +
+                std::to_string(partial_sum);
+
             socket_instance.send_to(message, sender_addr);
         }
 
@@ -103,7 +121,6 @@ namespace Processing
 
         void handle_exit_message(const struct sockaddr_in &sender_addr)
         {
-            logger.log("Client disconnected");
             client_map.remove_client(inet_ntoa(sender_addr.sin_addr));
         }
     };
@@ -148,25 +165,26 @@ namespace Processing
             {
                 auto message = socket_instance.receive();
 
-                logger.log("Received message: " + message.data);
-
                 if (message.is_valid && Utils::starts_with(message.data, REQUEST_ACK))
                 {
                     auto params = Utils::parse_message(message.data);
 
-                    if (params.fields_count < 3)
+                    if (params.fields_count < 4)
                     {
+                        logger.error("Invalid message format: " + message.data);
                         continue;
                     }
 
                     int request_id = std::stoi(params.fields[1]);
-                    // int partial_sum = std::stoi(params.fields[2]);
+                    int num_requests = std::stoi(params.fields[2]);
+                    int partial_sum = std::stoi(params.fields[3]);
 
                     if (request_id != this->request_id)
                     {
                         continue;
                     }
 
+                    logger.client_response(inet_ntoa(message.sender_addr.sin_addr), request_id, number, partial_sum, num_requests);
                     wait_for_response = false;
                     continue;
                 }

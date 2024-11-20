@@ -4,6 +4,11 @@ CXX := g++
 # Flags de compilador
 CXXFLAGS := -Wall -Wextra -std=c++17
 
+DEBUG ?= 0
+ifeq ($(DEBUG), 1)
+    CXXFLAGS += -DDEBUG
+endif
+
 # Diretórios e arquivos fonte
 SRV_SRC := src/server/main.cpp
 CLI_SRC := src/client/main.cpp

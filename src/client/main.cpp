@@ -92,11 +92,8 @@ int main(int argc, char *argv[])
         {
             logger.error("Invalid number: " + line);
         }
-
-        logger.log("Sum: " + std::to_string(sum));
     }
 
-    logger.log("Leaving...\n");
     processing_service.disconnect();
 
     return 0;

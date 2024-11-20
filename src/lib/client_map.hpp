@@ -27,9 +27,10 @@ namespace ClientMap
     ClientMap()
     {
       int ret = pthread_mutex_init(&lock, NULL);
+
       if (ret != 0)
       {
-        logger.log("Mutex initialization failed with code " + std::to_string(ret));
+        logger.error("Mutex initialization failed with code " + std::to_string(ret));
         exit(1);
       }
     }
@@ -49,8 +50,6 @@ namespace ClientMap
       pthread_mutex_lock(&lock);
       client_map.insert(std::pair<std::string, client_entry>(client_ip, new_client));
       pthread_mutex_unlock(&lock);
-
-      logger.log("Client added: " + client_ip);
     }
 
     void remove_client(std::string client_ip)
@@ -58,8 +57,6 @@ namespace ClientMap
       pthread_mutex_lock(&lock);
       client_map.erase(client_ip);
       pthread_mutex_unlock(&lock);
-
-      logger.log("Client removed: " + client_ip);
     }
 
     client_entry *get_client(std::string client_ip)
@@ -88,7 +85,6 @@ namespace ClientMap
       pthread_mutex_lock(&lock);
       client->last_req++;
       client->last_sum = last_sum;
-      logger.log("Client " + client_ip + " last_req: " + std::to_string(client->last_req) + " last_sum: " + std::to_string(client->last_sum));
       pthread_mutex_unlock(&lock);
     }
   };

@@ -15,7 +15,7 @@ namespace Utils
     struct ParsedMessage
     {
         int fields_count;
-        std::array<std::string, 3> fields;
+        std::array<std::string, 4> fields;
     } typedef parsed_message;
 
     bool starts_with(std::string str, std::string prefix)
