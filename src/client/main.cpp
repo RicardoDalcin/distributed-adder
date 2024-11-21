@@ -62,12 +62,9 @@ int main(int argc, char *argv[])
 
     signal_handler_callback = [&processing_service](int signo)
     {
-        std::cout << "Leaving...\n";
-        processing_service.disconnect();
-
         if (signo == SIGINT)
         {
-            std::cout << "Interrupted by user SIGINT\n";
+            processing_service.disconnect();
             sigaction(SIGINT, &old_action, NULL);
             kill(0, SIGINT);
         }
