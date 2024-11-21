@@ -32,9 +32,9 @@ namespace Discovery
             return message == DISCOVERY_MESSAGE;
         }
 
-        void respond(const struct sockaddr_in &sender_addr)
+        void respond(std::string client_ip)
         {
-            socket_instance.send_to(DISCOVERY_RESPONSE, sender_addr);
+            socket_instance.send_to_ip(DISCOVERY_RESPONSE, client_ip);
         }
     };
 

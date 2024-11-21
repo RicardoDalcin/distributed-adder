@@ -50,8 +50,6 @@ int main(int argc, char *argv[])
 
     logger.server_hello();
 
-    int shared_sum = 0;
-
     while (true)
     {
         auto message = socket_instance.receive();
@@ -60,9 +58,9 @@ int main(int argc, char *argv[])
             continue;
 
         auto data = message.data;
-        auto sender_addr = message.sender_addr;
+        const std::string client_ip = inet_ntoa(message.sender_addr.sin_addr);
 
-        auto process_message = [&logger, &shared_sum, &discovery_service, &processing_service, &client_map, data, sender_addr]()
+        auto process_message = [&logger, &discovery_service, &processing_service, &client_map, data, client_ip]()
         {
             if (processing_service.is_request_message(data))
             {
@@ -77,21 +75,20 @@ int main(int argc, char *argv[])
                 int request_id = std::stoi(params.fields[1]);
                 int number = std::stoi(params.fields[2]);
 
-                processing_service.process_request(sender_addr, request_id, number);
+                processing_service.process_request(client_ip, request_id, number);
                 return;
             }
 
             if (discovery_service.is_discovery_message(data))
             {
-                discovery_service.respond(sender_addr);
-                std::string client_ip = inet_ntoa(sender_addr.sin_addr);
+                discovery_service.respond(client_ip);
                 client_map.add_client(client_ip);
                 return;
             }
 
             if (processing_service.is_exit_message(data))
             {
-                processing_service.handle_exit_message(sender_addr);
+                processing_service.handle_exit_message(client_ip);
                 return;
             }
         };

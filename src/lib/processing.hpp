@@ -58,13 +58,13 @@ namespace Processing
             return Utils::starts_with(message, REQUEST_MESSAGE + Utils::DELIMITER);
         }
 
-        void process_request(const struct sockaddr_in &sender_addr, int request_id, int number)
+        void process_request(std::string client_ip, int request_id, int number)
         {
             int partial_sum = 0;
             int num_requests = 0;
 
             pthread_mutex_lock(&lock);
-            auto client = client_map.get_client(inet_ntoa(sender_addr.sin_addr));
+            auto client = client_map.get_client(client_ip);
 
             if (client == nullptr)
             {
@@ -80,11 +80,11 @@ namespace Processing
 
                 pthread_mutex_unlock(&lock);
 
-                respond(sender_addr, last_request, num_requests, partial_sum);
+                respond(client_ip, last_request, num_requests, partial_sum);
 
                 if (request_id <= last_request)
                 {
-                    logger.server_request(inet_ntoa(sender_addr.sin_addr), request_id, number, partial_sum, num_requests, true);
+                    logger.server_request(client_ip, request_id, number, partial_sum, num_requests, true);
                 }
 
                 return;
@@ -94,15 +94,14 @@ namespace Processing
             shared_state.num_reqs++;
             partial_sum = shared_state.total_sum;
             num_requests = shared_state.num_reqs;
-            client_map.new_client_request(inet_ntoa(sender_addr.sin_addr), partial_sum);
+            client_map.new_client_request(client_ip, partial_sum);
             pthread_mutex_unlock(&lock);
 
-            respond(sender_addr, request_id, num_requests, partial_sum);
-
-            logger.server_request(inet_ntoa(sender_addr.sin_addr), request_id, number, partial_sum, num_requests);
+            respond(client_ip, request_id, num_requests, partial_sum);
+            logger.server_request(client_ip, request_id, number, partial_sum, num_requests);
         }
 
-        void respond(const struct sockaddr_in &sender_addr, int request_id, int num_requests, int partial_sum)
+        void respond(std::string ip, int request_id, int num_requests, int partial_sum)
         {
             // prettier-ignore
             std::string message =
@@ -111,7 +110,7 @@ namespace Processing
                 std::to_string(num_requests) + Utils::DELIMITER +
                 std::to_string(partial_sum);
 
-            socket_instance.send_to(message, sender_addr);
+            socket_instance.send_to_ip(message, ip);
         }
 
         bool is_exit_message(std::string message)
@@ -119,9 +118,9 @@ namespace Processing
             return message == EXIT_MESSAGE;
         }
 
-        void handle_exit_message(const struct sockaddr_in &sender_addr)
+        void handle_exit_message(std::string client_ip)
         {
-            client_map.remove_client(inet_ntoa(sender_addr.sin_addr));
+            client_map.remove_client(client_ip);
         }
     };
 
