@@ -72,6 +72,7 @@ namespace Processing
                 return;
             }
 
+            // Verifica se o ID da requisição é o esperado para o cliente
             if (request_id != client->last_req + 1)
             {
                 int last_request = client->last_req;
@@ -80,23 +81,32 @@ namespace Processing
 
                 pthread_mutex_unlock(&lock);
 
+                // Reenvia o ack para o cliente com o ID da última requisição processada
                 respond(client_ip, last_request, num_requests, partial_sum);
 
                 if (request_id <= last_request)
                 {
+                    // Log de requisição duplicada
                     logger.server_request(client_ip, request_id, number, partial_sum, num_requests, true);
                 }
 
                 return;
             }
 
+            // Atualiza o estado compartilhado
             shared_state.total_sum += number;
             shared_state.num_reqs++;
+
+            // Salva os valores atualizados nas variáveis
             partial_sum = shared_state.total_sum;
             num_requests = shared_state.num_reqs;
+
+            // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
+
             pthread_mutex_unlock(&lock);
 
+            // Responde ao cliente com o ack
             respond(client_ip, request_id, num_requests, partial_sum);
             logger.server_request(client_ip, request_id, number, partial_sum, num_requests);
         }
@@ -152,6 +162,7 @@ namespace Processing
 
         void send_request(int number)
         {
+            // Envia a requisição ao servidor
             std::string message = REQUEST_MESSAGE + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(number);
             socket_instance.send_to_server(message);
 
@@ -162,6 +173,7 @@ namespace Processing
 
             while (wait_for_response && !timed_out)
             {
+                // Espera o ack do servidor
                 auto message = socket_instance.receive();
 
                 if (message.is_valid && Utils::starts_with(message.data, REQUEST_ACK))
@@ -188,10 +200,12 @@ namespace Processing
                     continue;
                 }
 
+                // Verifica se recebeu uma mensagem válida que não seja o ack esperado
                 if (message.is_valid)
                 {
                     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time).count();
 
+                    // Se o tempo corrido foi maior que o limite, considera timeout
                     if (elapsed_time > REQUEST_TIMEOUT_MS)
                     {
                         timed_out = true;
@@ -199,6 +213,7 @@ namespace Processing
                     }
                 }
 
+                // Se a mensagem não foi válida, considera timeout
                 if (!message.is_valid)
                 {
                     timed_out = true;

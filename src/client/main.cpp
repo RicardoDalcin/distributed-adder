@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
     {
         if (signo == SIGINT)
         {
+            // Envia mensagem de exit para o servidor caso receba um SIGINT
             processing_service.disconnect();
             sigaction(SIGINT, &old_action, NULL);
             kill(0, SIGINT);
