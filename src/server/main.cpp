@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
         auto data = message.data;
         const std::string client_ip = inet_ntoa(message.sender_addr.sin_addr);
 
+        // Callback para processar mensagens recebidas em uma thread separada
         auto process_message = [&logger, &discovery_service, &processing_service, &client_map, data, client_ip]()
         {
             if (processing_service.is_request_message(data))
@@ -93,6 +94,7 @@ int main(int argc, char *argv[])
             }
         };
 
+        // Cria uma thread para processar a mensagem
         std::thread(process_message).detach();
     }
 

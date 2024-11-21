@@ -148,8 +148,10 @@ namespace SocketInstance
 
         buffer[recv_len] = '\0';
 
+        // Valida se a mensagem possui a assinatura
         if (!Utils::starts_with(buffer, SOCKET_KEY))
         {
+            // Se não possuir, ignora e espera a próxima mensagem
             return this->receive();
         }
 
@@ -157,6 +159,7 @@ namespace SocketInstance
         int length = full_message.length();
         int signature_length = SOCKET_KEY.length() + 1;
 
+        // Remove a assinatura da mensagem e passa o restante do conteúdo para ser utilizado
         message.data = full_message.substr(signature_length, length - signature_length);
         message.is_valid = true;
         message.sender_addr = sender_addr;
@@ -166,6 +169,7 @@ namespace SocketInstance
 
     int SocketInstance::send_to(const std::string message, const struct sockaddr_in &sender_addr)
     {
+        // Insere a assinatura no começo da mensagem
         const char *signed_message = std::string(SOCKET_KEY + Utils::DELIMITER + message).c_str();
         return sendto(sock, signed_message, strlen(signed_message), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
     }
