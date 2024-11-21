@@ -11,10 +11,15 @@
 #include <functional>
 #include <sys/time.h>
 
+#include "../lib/utils.hpp"
+
 #define BUFFER_SIZE 1024
 
 namespace SocketInstance
 {
+    // Chave única usada para identificar mensagens que vieram do nosso programa
+    const std::string SOCKET_KEY = "dfc59ad1";
+
     enum class SocketInitResult
     {
         Success,
@@ -34,7 +39,7 @@ namespace SocketInstance
         bool is_valid;
         std::string data;
         struct sockaddr_in sender_addr;
-    };
+    } typedef received_message;
 
     class SocketInstance
     {
@@ -50,7 +55,7 @@ namespace SocketInstance
 
         void set_server_ip(const std::string server_ip);
 
-        ReceivedMessage receive();
+        received_message receive();
 
         void close_socket();
 
@@ -126,9 +131,9 @@ namespace SocketInstance
         return bind(sock, (struct sockaddr *)&receiver_addr, sizeof(receiver_addr)) >= 0;
     }
 
-    ReceivedMessage SocketInstance::receive()
+    received_message SocketInstance::receive()
     {
-        ReceivedMessage message;
+        received_message message;
 
         char buffer[BUFFER_SIZE];
         int recv_len = recvfrom(sock, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
@@ -140,8 +145,16 @@ namespace SocketInstance
         }
 
         buffer[recv_len] = '\0';
+
+        if (!Utils::starts_with(buffer, SOCKET_KEY))
+        {
+            return this->receive();
+        }
+
+        std::string full_message(buffer);
+        int signature_length = SOCKET_KEY.length() + 1;
+        message.data = full_message.substr(signature_length, full_message.length() - signature_length);
         message.is_valid = true;
-        message.data = std::string(buffer);
         message.sender_addr = sender_addr;
 
         return message;
@@ -149,12 +162,13 @@ namespace SocketInstance
 
     int SocketInstance::send_to(const std::string message, const struct sockaddr_in &sender_addr)
     {
-        return sendto(sock, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
+        const char *signed_message = std::string(SOCKET_KEY + Utils::DELIMITER + message).c_str();
+        return sendto(sock, signed_message, strlen(signed_message), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
     }
 
     int SocketInstance::send_to_server(const std::string message)
     {
-        return sendto(sock, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        return send_to(message, server_addr);
     }
 
     int SocketInstance::send_broadcast(const std::string message)
@@ -165,7 +179,7 @@ namespace SocketInstance
         addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
         addr.sin_port = htons(this->port);
 
-        return sendto(sock, message.c_str(), message.length(), 0, (struct sockaddr *)&addr, sizeof(addr));
+        return send_to(message, addr);
     }
 
     void SocketInstance::set_server_ip(const std::string server_ip)
