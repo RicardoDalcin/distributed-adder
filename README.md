@@ -1,28 +1,21 @@
-Comandos docker:
+# Sistemas Operacionais II
 
-- Uma vez só:
+## Trabalho prático - Parte 1
 
-  - `docker network create --subnet=192.168.1.0/24 udp_network`
-  - `docker build -t cpp-build-container-alpine .`
+### Integrantes
 
-- Para cada container (dentro do WSL2, senão o mount não funciona):
-  - `docker run --rm -it --privileged --net udp_network --ip 192.168.1.100 -v /mnt/c/Users/usuario/caminho-projeto:/workspace cpp-build-container-alpine`
-  - Varia o IP pra cada um (.100, .101, etc)
+- Bernardo Beneduzi Borba, bbborba@inf.ufrgs.br - 00323911
+- Ricardo Hermes Dalcin, rdalcin@inf.ufrgs.br - 00325735
 
-To-do
+### Descrição
 
-- Ver se enviar o tipo da requisição (DISCOVERY, REQUEST, REQUEST_ACK) impacta na performance
-- Mudar soma para uint64
-- Logger escutando mudanças na tabela de clientes
-- Mutex por cliente
+Esse repositório contém o código referente à parte 1 do trabalho prático da disciplina de Sistemas Operacionais II.
 
-Dúvidas
-- Para timeout, usar receive não-bloqueante ou timeout do socket?
-  - Timeout do socket tem problema que se receber outra mensagem, reinicia o timeout
-- Logger deveria ser chamado no recebimento de uma nova request, ou escutar mudanças na tabela de clientes?
-- Podemos usar estruturas de dados prontas, como map?
-- Em caso de DUP, o servidor pode reenviar o ack?
-- Devemos exibir alguma mensagem se chegar uma request fora de ordem?
-- Na tabela de clientes, o last_sum 68 para 1.1.1.3 não deveria ser 111 (68 + 43)?
-- ctrl+C ou ctrl+D, preciso avisar o server que eu terminei?
-- Um lock por client para não bloquear outros IPs enquanto um processa
+Para compilar, basta executar o comando `make` na raiz do projeto.
+
+Caso deseje compilar em modo debug, basta executar o comando `make DEBUG=1`.
+
+Para executar o programa, basta rodar os seguintes comandos:
+
+- Servidor:`./dist/server 4000`
+- Cliente: `./dist/client 4000` ou `./dist/client 4000 < input.txt`
