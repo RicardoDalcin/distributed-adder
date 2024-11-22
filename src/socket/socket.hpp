@@ -170,7 +170,8 @@ namespace SocketInstance
     int SocketInstance::send_to(const std::string message, const struct sockaddr_in &sender_addr)
     {
         // Insere a assinatura no começo da mensagem
-        const char *signed_message = std::string(SOCKET_KEY + Utils::DELIMITER + message).c_str();
+        std::string signed_msg = SOCKET_KEY + Utils::DELIMITER + message;
+        const char *signed_message = signed_msg.c_str();
         return sendto(sock, signed_message, strlen(signed_message), 0, (struct sockaddr *)&sender_addr, sizeof(sender_addr));
     }
 
