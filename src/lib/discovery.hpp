@@ -51,14 +51,14 @@ namespace Discovery
 
         std::string find_server_ip()
         {
-            // Envia a mensagem de descoberta em broadcast
-            socket_instance.send_broadcast(DISCOVERY_MESSAGE);
-
             std::string server_ip = "";
             bool wait_for_response = true;
 
             while (wait_for_response)
             {
+                // Envia a mensagem de descoberta em broadcast
+                socket_instance.send_broadcast(DISCOVERY_MESSAGE);
+
                 // Espera a resposta do servidor
                 auto message = socket_instance.receive();
 
