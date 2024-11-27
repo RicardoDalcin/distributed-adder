@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
     Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map);
     Processing::ProcessingServiceServer processing_service(socket_instance, client_map);
 
+    discovery_service.find_primary_server();
+
     logger.server_hello();
 
     while (true)
@@ -63,6 +65,11 @@ int main(int argc, char *argv[])
         // Callback para processar mensagens recebidas em uma thread separada
         auto process_message = [&logger, &discovery_service, &processing_service, &client_map, data, client_ip]()
         {
+            if (!discovery_service.is_primary_server())
+            {
+                return;
+            }
+
             if (processing_service.is_request_message(data))
             {
                 auto params = Utils::parse_message(data);
@@ -80,7 +87,13 @@ int main(int argc, char *argv[])
                 return;
             }
 
-            if (discovery_service.is_discovery_message(data))
+            if (discovery_service.is_server_discovery_message(data))
+            {
+                discovery_service.process_server_discovery(client_ip);
+                return;
+            }
+
+            if (discovery_service.is_client_discovery_message(data))
             {
                 discovery_service.respond(client_ip);
                 client_map.add_client(client_ip);

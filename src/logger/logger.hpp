@@ -62,8 +62,21 @@ namespace Logger
                       << "\033[0m"
                       << std::endl;
         }
+
+        void debug(const std::string &message)
+        {
+            std::cout << "\033[1;34m"
+                      << "[DEBUG] "
+                      << message
+                      << "\033[0m"
+                      << std::endl;
+        }
 #else
         void error([[maybe_unused]] const std::string &message)
+        {
+        }
+
+        void debug([[maybe_unused]] const std::string &message)
         {
         }
 #endif
