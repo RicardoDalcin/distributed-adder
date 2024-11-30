@@ -5,6 +5,8 @@
 #include <string>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <thread>
+#include <chrono>
 
 #include "../logger/logger.hpp"
 #include "../socket/socket.hpp"
@@ -14,6 +16,9 @@ namespace Discovery
 {
     const std::string CLIENT_DISCOVERY_MESSAGE = "CLIENT_DISCOVERY";
     const std::string SERVER_DISCOVERY_MESSAGE = "SERVER_DISCOVERY";
+
+    const std::string KEEP_ALIVE_MESSAGE = "KEEP_ALIVE";
+    const std::string IM_ALIVE_MESSAGE = "IM_ALIVE";
 
     const std::string DISCOVERY_RESPONSE = "DISCOVERY_RESPONSE";
 
@@ -109,6 +114,73 @@ namespace Discovery
 
             server_type = new_server_type;
             primary_server_ip = new_server_ip;
+
+            if (server_type == ServerType::Replica)
+            {
+                socket_instance.set_server_ip(primary_server_ip);
+                keep_alive();
+            }
+        }
+
+        void keep_alive()
+        {
+            std::thread keep_alive_thread([this]()
+                                          {
+                bool server_alive = true;
+                socket_instance.set_timeout(REQUEST_TIMEOUT_MS);
+
+                while (server_alive)
+                {
+                    logger.debug("Sending keep alive message");
+                    socket_instance.send_to_server(KEEP_ALIVE_MESSAGE);
+
+                    bool timed_out = false;
+                    bool wait_for_response = true;
+                    auto start_time = std::chrono::system_clock::now();
+
+                    while (wait_for_response && !timed_out)
+                    {
+                        auto message = socket_instance.receive();
+
+                        if (message.is_valid && message.data == IM_ALIVE_MESSAGE)
+                        {
+                            wait_for_response = false;
+                            continue;
+                        }
+
+                        if (!message.is_valid)
+                        {
+                            logger.debug("TIMEOUT 1" + message.data);
+                            wait_for_response = false;
+                            timed_out = true;
+                            server_alive = false;
+                            continue;
+                        }
+
+                        auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time).count();
+
+                        if (elapsed_time > REQUEST_TIMEOUT_MS)
+                        {
+                            logger.debug("TIMEOUT 2");
+                            wait_for_response = false;
+                            timed_out = true;
+                            server_alive = false;
+                            continue;
+                        }
+                    }
+
+                    // Espera 500ms
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                }
+
+                logger.error("SERVER IS DEAD"); });
+
+            keep_alive_thread.detach();
+        }
+
+        bool is_keep_alive_message(std::string message)
+        {
+            return message == KEEP_ALIVE_MESSAGE;
         }
 
         bool is_client_discovery_message(std::string message)
@@ -119,6 +191,12 @@ namespace Discovery
         bool is_server_discovery_message(std::string message)
         {
             return message == SERVER_DISCOVERY_MESSAGE;
+        }
+
+        void im_alive(std::string client_ip)
+        {
+            logger.debug("Sending im alive message to " + client_ip);
+            socket_instance.send_to_ip(IM_ALIVE_MESSAGE, client_ip);
         }
 
         void respond(std::string client_ip)

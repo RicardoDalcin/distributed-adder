@@ -54,6 +54,12 @@ int main(int argc, char *argv[])
 
     while (true)
     {
+        if (!discovery_service.is_primary_server())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
         auto message = socket_instance.receive();
 
         if (!message.is_valid)
@@ -65,11 +71,6 @@ int main(int argc, char *argv[])
         // Callback para processar mensagens recebidas em uma thread separada
         auto process_message = [&logger, &discovery_service, &processing_service, &client_map, data, client_ip]()
         {
-            if (!discovery_service.is_primary_server())
-            {
-                return;
-            }
-
             if (processing_service.is_request_message(data))
             {
                 auto params = Utils::parse_message(data);
@@ -84,6 +85,13 @@ int main(int argc, char *argv[])
                 int number = std::stoi(params.fields[2]);
 
                 processing_service.process_request(client_ip, request_id, number);
+                return;
+            }
+
+            if (discovery_service.is_keep_alive_message(data))
+            {
+                logger.debug("Keep alive message received");
+                discovery_service.im_alive(client_ip);
                 return;
             }
 
