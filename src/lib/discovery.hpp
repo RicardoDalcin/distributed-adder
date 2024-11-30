@@ -60,7 +60,7 @@ namespace Discovery
         void find_primary_server()
         {
             // Envia a mensagem de descoberta até 3 vezes
-            // Caso ocorra timeout nas três tentativas, considerar o servidor primário
+            // Caso ocorra timeout nas três tentativas, considera o servidor como primário
             int tries = 0;
             ServerType new_server_type = ServerType::Primary;
             std::string new_server_ip = "";
@@ -70,43 +70,15 @@ namespace Discovery
                 tries++;
                 logger.debug("Sending discovery message tries: " + std::to_string(tries));
 
-                bool wait_for_response = true;
-                bool timed_out = false;
+                socket_instance.send_broadcast(SERVER_DISCOVERY_MESSAGE);
+                auto message = socket_instance.wait_for_message(DISCOVERY_RESPONSE, REQUEST_TIMEOUT_MS);
 
-                auto start_time = std::chrono::system_clock::now();
-
-                while (wait_for_response && !timed_out)
+                if (message.result == SocketInstance::WaitMessageResult::Success)
                 {
-                    // Envia a mensagem de descoberta em broadcast
-                    socket_instance.send_broadcast(SERVER_DISCOVERY_MESSAGE);
-
-                    // Espera a resposta do servidor
-                    auto message = socket_instance.receive();
-
-                    if (!message.is_valid)
-                    {
-                        // Em caso de timeout, passa para a próxima tentativa
-                        wait_for_response = false;
-                        continue;
-                    }
-
-                    // Verifica se recebeu uma resposta de descoberta
-                    if (message.is_valid && message.data == DISCOVERY_RESPONSE)
-                    {
-                        std::string ip = inet_ntoa(message.sender_addr.sin_addr);
-                        wait_for_response = false;
-                        new_server_type = ServerType::Replica;
-                        new_server_ip = ip;
-                        continue;
-                    }
-
-                    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time).count();
-
-                    if (elapsed_time > REQUEST_TIMEOUT_MS)
-                    {
-                        timed_out = true;
-                        wait_for_response = false;
-                    }
+                    std::string ip = inet_ntoa(message.message.sender_addr.sin_addr);
+                    new_server_ip = ip;
+                    new_server_type = ServerType::Replica;
+                    continue;
                 }
             }
 
@@ -124,58 +96,30 @@ namespace Discovery
 
         void keep_alive()
         {
-            std::thread keep_alive_thread([this]()
-                                          {
+            auto keep_alive_thread = [this]()
+            {
                 bool server_alive = true;
                 socket_instance.set_timeout(REQUEST_TIMEOUT_MS);
 
                 while (server_alive)
                 {
-                    logger.debug("Sending keep alive message");
                     socket_instance.send_to_server(KEEP_ALIVE_MESSAGE);
+                    auto message = socket_instance.wait_for_message(IM_ALIVE_MESSAGE, REQUEST_TIMEOUT_MS);
 
-                    bool timed_out = false;
-                    bool wait_for_response = true;
-                    auto start_time = std::chrono::system_clock::now();
-
-                    while (wait_for_response && !timed_out)
+                    if (message.result == SocketInstance::WaitMessageResult::Timeout)
                     {
-                        auto message = socket_instance.receive();
-
-                        if (message.is_valid && message.data == IM_ALIVE_MESSAGE)
-                        {
-                            wait_for_response = false;
-                            continue;
-                        }
-
-                        if (!message.is_valid)
-                        {
-                            logger.debug("TIMEOUT 1" + message.data);
-                            wait_for_response = false;
-                            timed_out = true;
-                            server_alive = false;
-                            continue;
-                        }
-
-                        auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time).count();
-
-                        if (elapsed_time > REQUEST_TIMEOUT_MS)
-                        {
-                            logger.debug("TIMEOUT 2");
-                            wait_for_response = false;
-                            timed_out = true;
-                            server_alive = false;
-                            continue;
-                        }
+                        server_alive = false;
+                        continue;
                     }
 
                     // Espera 500ms
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 }
 
-                logger.error("SERVER IS DEAD"); });
+                logger.error("SERVER IS DEAD");
+            };
 
-            keep_alive_thread.detach();
+            std::thread(keep_alive_thread).detach();
         }
 
         bool is_keep_alive_message(std::string message)

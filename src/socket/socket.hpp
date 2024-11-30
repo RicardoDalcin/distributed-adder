@@ -10,6 +10,7 @@
 #include <ifaddrs.h>
 #include <functional>
 #include <sys/time.h>
+#include <chrono>
 
 #include "../lib/utils.hpp"
 
@@ -34,12 +35,24 @@ namespace SocketInstance
         Client
     };
 
+    enum class WaitMessageResult
+    {
+        Success,
+        Timeout
+    };
+
     struct ReceivedMessage
     {
         bool is_valid;
         std::string data;
         struct sockaddr_in sender_addr;
-    } typedef received_message;
+    } typedef received_message_t;
+
+    struct Message
+    {
+        WaitMessageResult result;
+        received_message_t message;
+    } typedef message_t;
 
     class SocketInstance
     {
@@ -48,6 +61,7 @@ namespace SocketInstance
         ~SocketInstance();
         SocketInitResult init();
         int set_timeout(int timeout_ms);
+        message_t wait_for_message(const std::string target_message, int timeout_ms);
 
         int send_to_ip(const std::string message, std::string ip);
         int send_to_server(const std::string message);
@@ -55,13 +69,14 @@ namespace SocketInstance
 
         void set_server_ip(const std::string server_ip);
 
-        received_message receive();
+        received_message_t receive();
 
         void close_socket();
 
     private:
         int sock;
         int port;
+        int timeout_ms;
         struct sockaddr_in receiver_addr, sender_addr, server_addr;
         socklen_t sender_addr_len = sizeof(sender_addr);
 
@@ -104,13 +119,55 @@ namespace SocketInstance
         return SocketInitResult::Success;
     }
 
-    int SocketInstance::set_timeout(int timeout_ms)
+    int SocketInstance::set_timeout(int new_timeout_ms)
     {
         struct timeval tv;
-        tv.tv_sec = timeout_ms / 1000;
-        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        tv.tv_sec = new_timeout_ms / 1000;
+        tv.tv_usec = (new_timeout_ms % 1000) * 1000;
+
+        timeout_ms = new_timeout_ms;
 
         return setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    }
+
+    message_t SocketInstance::wait_for_message(const std::string target_message, int timeout_ms)
+    {
+        int previous_timeout_ms = this->timeout_ms;
+
+        set_timeout(timeout_ms);
+
+        bool timed_out = false;
+        bool wait_for_response = true;
+        auto start_time = std::chrono::system_clock::now();
+
+        message_t final_message;
+
+        while (wait_for_response && !timed_out)
+        {
+            auto message = receive();
+
+            if (message.is_valid && message.data == target_message)
+            {
+                final_message.result = WaitMessageResult::Success;
+                final_message.message = message;
+                wait_for_response = false;
+                continue;
+            }
+
+            auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time).count();
+
+            if (!message.is_valid || elapsed_time > timeout_ms)
+            {
+                final_message.result = WaitMessageResult::Timeout;
+                final_message.message = message;
+                wait_for_response = false;
+                timed_out = true;
+                continue;
+            }
+        }
+
+        set_timeout(previous_timeout_ms);
+        return final_message;
     }
 
     bool SocketInstance::create_socket()
@@ -133,9 +190,9 @@ namespace SocketInstance
         return bind(sock, (struct sockaddr *)&receiver_addr, sizeof(receiver_addr)) >= 0;
     }
 
-    received_message SocketInstance::receive()
+    received_message_t SocketInstance::receive()
     {
-        received_message message;
+        received_message_t message;
 
         char buffer[BUFFER_SIZE];
         int recv_len = recvfrom(sock, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
