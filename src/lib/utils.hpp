@@ -5,12 +5,14 @@
 #include <array>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <chrono>
 
 std::string address_cache = "";
 
 namespace Utils
 {
     static const char DELIMITER = ';';
+    static const char DATA_DELIMITER = ',';
 
     struct ParsedMessage
     {

@@ -52,6 +52,11 @@ namespace Discovery
 
         ~DiscoveryServiceServer() {}
 
+        std::map<std::string, bool> get_server_map()
+        {
+            return server_map;
+        }
+
         bool is_primary_server()
         {
             return server_type == ServerType::Primary;
@@ -90,7 +95,7 @@ namespace Discovery
             if (server_type == ServerType::Replica)
             {
                 socket_instance.set_server_ip(primary_server_ip);
-                keep_alive();
+                // keep_alive();
             }
         }
 
@@ -120,6 +125,11 @@ namespace Discovery
             };
 
             std::thread(keep_alive_thread).detach();
+        }
+
+        bool is_im_alive_message(std::string message)
+        {
+            return message == IM_ALIVE_MESSAGE;
         }
 
         bool is_keep_alive_message(std::string message)

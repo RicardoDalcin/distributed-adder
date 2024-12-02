@@ -22,6 +22,7 @@ namespace Processing
 
     const std::string REQUEST_MESSAGE = "REQUEST";
     const std::string REQUEST_ACK = "REQUEST_ACK";
+    const std::string STATE_UPDATE_MESSAGE = "STATE_UPDATE";
     const std::string EXIT_MESSAGE = "EXIT";
 
     class ProcessingServiceServer
@@ -58,7 +59,21 @@ namespace Processing
             return Utils::starts_with(message, REQUEST_MESSAGE + Utils::DELIMITER);
         }
 
-        void process_request(std::string client_ip, int request_id, int number)
+        bool is_state_update_message(std::string message)
+        {
+            return Utils::starts_with(message, STATE_UPDATE_MESSAGE + Utils::DELIMITER);
+        }
+
+        void send_state_update(std::string client_ip)
+        {
+            std::string str_client_map = client_map.to_string();
+
+            logger.debug("Sending state update to " + client_ip);
+
+            socket_instance.send_to_ip(STATE_UPDATE_MESSAGE + Utils::DELIMITER + str_client_map, client_ip);
+        }
+
+        void process_request(std::string client_ip, int request_id, int number, std::map<std::string, bool> server_map)
         {
             int partial_sum = 0;
             int num_requests = 0;
@@ -104,6 +119,14 @@ namespace Processing
             // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
 
+            for (auto it = server_map.begin(); it != server_map.end(); it++)
+            {
+                if (it->second)
+                {
+                    send_state_update(it->first);
+                }
+            }
+
             pthread_mutex_unlock(&lock);
 
             // Responde ao cliente com o ack
@@ -121,6 +144,15 @@ namespace Processing
                 std::to_string(partial_sum);
 
             socket_instance.send_to_ip(message, ip);
+        }
+
+        void handle_state_update(std::string message)
+        {
+            std::string str_client_map = Utils::parse_message(message).fields[1];
+            client_map = ClientMap::ClientMap::from_string(str_client_map);
+
+            client_map.for_each([this](std::string client_ip, ClientMap::ClientEntry client_entry)
+                                { logger.debug("Client " + client_ip + " last_req: " + std::to_string(client_entry.last_req) + " last_sum: " + std::to_string(client_entry.last_sum)); });
         }
 
         bool is_exit_message(std::string message)

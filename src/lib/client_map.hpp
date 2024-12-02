@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <pthread.h>
+#include <vector>
 
 #include "../logger/logger.hpp"
 
@@ -85,6 +86,66 @@ namespace ClientMap
       pthread_mutex_lock(&lock);
       client->last_req++;
       client->last_sum = last_sum;
+      pthread_mutex_unlock(&lock);
+    }
+
+    std::string to_string()
+    {
+      std::string str = "";
+
+      pthread_mutex_lock(&lock);
+      for (auto it = client_map.begin(); it != client_map.end(); it++)
+      {
+        str += it->first + Utils::DATA_DELIMITER + std::to_string(it->second.last_req) + Utils::DATA_DELIMITER + std::to_string(it->second.last_sum) + Utils::DATA_DELIMITER;
+      }
+      pthread_mutex_unlock(&lock);
+
+      return str;
+    }
+
+    static ClientMap from_string(std::string value)
+    {
+      ClientMap client_map;
+
+      size_t pos = 0;
+      std::string token;
+
+      std::vector<std::string> tokens;
+
+      while ((pos = value.find(Utils::DATA_DELIMITER)) != std::string::npos)
+      {
+        token = value.substr(0, pos);
+        value.erase(0, pos + 1);
+        tokens.push_back(token);
+      }
+
+      for (size_t i = 0; i < tokens.size(); i += 3)
+      {
+        client_entry new_client;
+        new_client.address = tokens[i];
+        new_client.last_req = std::stoi(tokens[i + 1]);
+        new_client.last_sum = std::stoi(tokens[i + 2]);
+        client_map.add_client(new_client.address);
+      }
+
+      return client_map;
+    }
+
+    int size()
+    {
+      pthread_mutex_lock(&lock);
+      int size = client_map.size();
+      pthread_mutex_unlock(&lock);
+      return size;
+    }
+
+    void for_each(std::function<void(std::string, client_entry)> callback)
+    {
+      pthread_mutex_lock(&lock);
+      for (auto it = client_map.begin(); it != client_map.end(); it++)
+      {
+        callback(it->first, it->second);
+      }
       pthread_mutex_unlock(&lock);
     }
   };
