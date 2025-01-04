@@ -53,6 +53,18 @@ namespace ClientMap
       pthread_mutex_unlock(&lock);
     }
 
+    void add_existing_client(std::string client_ip, int last_req, int last_sum)
+    {
+      client_entry new_client;
+      new_client.address = client_ip;
+      new_client.last_req = last_req;
+      new_client.last_sum = last_sum;
+
+      pthread_mutex_lock(&lock);
+      client_map.insert(std::pair<std::string, client_entry>(client_ip, new_client));
+      pthread_mutex_unlock(&lock);
+    }
+
     void remove_client(std::string client_ip)
     {
       pthread_mutex_lock(&lock);
@@ -121,11 +133,11 @@ namespace ClientMap
 
       for (size_t i = 0; i < tokens.size(); i += 3)
       {
-        client_entry new_client;
-        new_client.address = tokens[i];
-        new_client.last_req = std::stoi(tokens[i + 1]);
-        new_client.last_sum = std::stoi(tokens[i + 2]);
-        client_map.add_client(new_client.address);
+        std::string address = tokens[i];
+        int last_req = std::stoi(tokens[i + 1]);
+        int last_sum = std::stoi(tokens[i + 2]);
+
+        client_map.add_existing_client(address, last_req, last_sum);
       }
 
       return client_map;

@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
             received_im_alive.wait();
 
             logger.debug("Im alive message received");
-            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
         logger.debug("Server is dead");
