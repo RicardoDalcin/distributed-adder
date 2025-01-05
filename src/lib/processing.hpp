@@ -10,6 +10,7 @@
 #include "../socket/socket.hpp"
 #include "../lib/utils.hpp"
 #include "../lib/client_map.hpp"
+#include "../lib/server_map.hpp"
 #include "../logger/logger.hpp"
 
 namespace Processing
@@ -73,7 +74,7 @@ namespace Processing
             socket_instance.send_to_ip(STATE_UPDATE_MESSAGE + Utils::DELIMITER + str_client_map, client_ip);
         }
 
-        void process_request(std::string client_ip, int request_id, int number, std::map<std::string, bool> server_map)
+        void process_request(std::string client_ip, int request_id, int number, ServerMap::ServerMap &server_map)
         {
             int partial_sum = 0;
             int num_requests = 0;
@@ -119,12 +120,10 @@ namespace Processing
             // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
 
-            for (auto it = server_map.begin(); it != server_map.end(); it++)
+            std::map<std::string, int> map = server_map.get_map();
+            for (auto it = map.begin(); it != map.end(); it++)
             {
-                if (it->second)
-                {
-                    send_state_update(it->first);
-                }
+                send_state_update(it->first);
             }
 
             pthread_mutex_unlock(&lock);

@@ -9,6 +9,7 @@
 #include "../lib/discovery.hpp"
 #include "../lib/processing.hpp"
 #include "../lib/client_map.hpp"
+#include "../lib/server_map.hpp"
 #include "../logger/logger.hpp"
 
 struct ClientEntry
@@ -74,8 +75,9 @@ int main(int argc, char *argv[])
     }
 
     ClientMap::ClientMap client_map;
+    ServerMap::ServerMap server_map;
 
-    Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map);
+    Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map, server_map);
     Processing::ProcessingServiceServer processing_service(socket_instance, client_map);
 
     discovery_service.find_primary_server();

@@ -11,6 +11,7 @@
 #include "../logger/logger.hpp"
 #include "../socket/socket.hpp"
 #include "../lib/client_map.hpp"
+#include "../lib/server_map.hpp"
 
 namespace Discovery
 {
@@ -21,6 +22,10 @@ namespace Discovery
     const std::string IM_ALIVE_MESSAGE = "IM_ALIVE";
 
     const std::string DISCOVERY_RESPONSE = "DISCOVERY_RESPONSE";
+
+    const std::string ELECTION_START_MESSAGE = "ELECTION";
+    const std::string ELECTION_ANSWER_MESSAGE = "ELECTION_ANSWER";
+    const std::string ELECTION_COORDINATOR_MESSAGE = "ELECTION_COORDINATOR";
 
     enum class ServerType
     {
@@ -40,19 +45,20 @@ namespace Discovery
 
         SocketInstance::SocketInstance &socket_instance;
         ClientMap::ClientMap &client_map;
-        std::map<std::string, bool> server_map;
+        ServerMap::ServerMap &server_map;
         std::string primary_server_ip;
 
     public:
-        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map)
+        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map, ServerMap::ServerMap &server_map)
             : socket_instance(socket_instance),
-              client_map(client_map)
+              client_map(client_map),
+              server_map(server_map)
         {
         }
 
         ~DiscoveryServiceServer() {}
 
-        std::map<std::string, bool> get_server_map()
+        ServerMap::ServerMap &get_server_map()
         {
             return server_map;
         }
@@ -83,6 +89,22 @@ namespace Discovery
                     std::string ip = inet_ntoa(message.message.sender_addr.sin_addr);
                     new_server_ip = ip;
                     new_server_type = ServerType::Replica;
+
+                    auto msg = Utils::parse_message(message.message.data);
+
+                    if (msg.fields_count < 2)
+                    {
+                        logger.error("Invalid server discovery message: " + message.message.data);
+                        continue;
+                    }
+
+                    int server_id = std::stoi(msg.fields[1]);
+                    server_map.set_id(server_id);
+                    server_map.load_from_string(msg.fields[2]);
+
+                    logger.debug("Server id: " + std::to_string(server_id));
+                    logger.debug("Server map: " + server_map.to_string());
+
                     continue;
                 }
             }
@@ -158,11 +180,18 @@ namespace Discovery
             socket_instance.send_to_ip(DISCOVERY_RESPONSE, client_ip);
         }
 
+        void respond_server(std::string client_ip, int server_id)
+        {
+            std::string message = DISCOVERY_RESPONSE + Utils::DELIMITER + std::to_string(server_id) + Utils::DELIMITER + server_map.to_string();
+            socket_instance.send_to_ip(message, client_ip);
+        }
+
         void process_server_discovery(std::string client_ip)
         {
             logger.debug("Processing server discovery");
-            server_map.insert(std::pair<std::string, int>(client_ip, true));
-            respond(client_ip);
+            int id = server_map.add_server(client_ip);
+            logger.debug("Added server " + client_ip + " with id " + std::to_string(id));
+            respond_server(client_ip, id);
         }
     };
 

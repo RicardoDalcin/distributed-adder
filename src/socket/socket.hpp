@@ -141,12 +141,15 @@ namespace SocketInstance
         auto start_time = std::chrono::system_clock::now();
 
         message_t final_message;
+        std::string msg_with_separator = target_message + Utils::DELIMITER;
 
         while (wait_for_response && !timed_out)
         {
             auto message = receive();
 
-            if (message.is_valid && message.data == target_message)
+            if (message.is_valid &&
+                (message.data == target_message ||
+                 Utils::starts_with(message.data, msg_with_separator)))
             {
                 final_message.result = WaitMessageResult::Success;
                 final_message.message = message;
