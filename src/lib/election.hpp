@@ -29,7 +29,13 @@ namespace Election
     bool is_election_running = false;
     bool has_elected = false;
     std::string elected_server_ip = "";
-    std::map<std::string, bool> answer_buffer;
+
+    void reset_state()
+    {
+      is_election_running = false;
+      has_elected = false;
+      elected_server_ip = "";
+    }
 
   public:
     Election(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map, ServerMap::ServerMap &server_map)
@@ -46,7 +52,7 @@ namespace Election
       return is_election_running;
     }
 
-    void start_election()
+    void start_election(std::function<void(std::string)> on_server_elected, std::function<void()> on_self_elected)
     {
       if (is_election_running)
       {
@@ -85,6 +91,8 @@ namespace Election
       if (has_elected)
       {
         logger.debug("Election already finished");
+        reset_state();
+        on_server_elected(elected_server_ip);
         return;
       }
 
@@ -94,6 +102,9 @@ namespace Election
         last_election_result_timestamp = std::chrono::system_clock::now().time_since_epoch().count();
         server_map.iterate([this](std::pair<std::string, int> data)
                            { send_election_coordinator_message(data.first); });
+
+        reset_state();
+        on_self_elected();
       }
     }
 
@@ -166,10 +177,10 @@ namespace Election
       return Utils::starts_with(message, ELECTION_COORDINATOR_MESSAGE + Utils::DELIMITER);
     }
 
-    void handle_election_message(std::string client_ip)
+    void handle_election_message(std::string client_ip, std::function<void(std::string)> on_server_elected, std::function<void()> on_self_elected)
     {
       answer_election(client_ip);
-      start_election();
+      start_election(on_server_elected, on_self_elected);
     }
 
     void answer_election(std::string ip)

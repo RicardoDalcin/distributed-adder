@@ -120,6 +120,19 @@ namespace Discovery
             }
         }
 
+        void set_self_primary_server()
+        {
+            server_type = ServerType::Primary;
+            primary_server_ip = "";
+        }
+
+        void set_primary_server(std::string ip)
+        {
+            server_type = ServerType::Replica;
+            primary_server_ip = ip;
+            socket_instance.set_server_ip(ip);
+        }
+
         bool is_im_alive_message(std::string message)
         {
             return message == IM_ALIVE_MESSAGE;

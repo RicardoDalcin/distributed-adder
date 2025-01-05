@@ -87,159 +87,195 @@ int main(int argc, char *argv[])
 
     logger.server_hello();
 
-    auto last_keep_alive_msg = std::chrono::system_clock::now();
-    auto last_im_alive_msg = std::chrono::system_clock::now();
-    bool is_server_alive = true;
-    Semaphore received_im_alive(0);
-
-    auto keep_alive = [&logger, &socket_instance, &discovery_service, &last_keep_alive_msg, &received_im_alive, &is_server_alive, &election]()
-    {
-        socket_instance.set_timeout(10);
-        while (!discovery_service.is_primary_server() && is_server_alive)
-        {
-            last_keep_alive_msg = std::chrono::system_clock::now();
-            // logger.debug("Send keep alive message");
-            socket_instance.send_to_server(Discovery::KEEP_ALIVE_MESSAGE);
-
-            received_im_alive.wait();
-
-            // logger.debug("Im alive message received");
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-
-        if (!discovery_service.is_primary_server())
-        {
-            logger.debug("Server is dead");
-            election.start_election();
-        }
-    };
-
-    std::thread(keep_alive).detach();
-
     while (true)
     {
-        if (election.is_active())
+        auto last_keep_alive_msg = std::chrono::system_clock::now();
+        auto last_im_alive_msg = std::chrono::system_clock::now();
+        bool is_server_alive = true;
+        Semaphore received_im_alive(0);
+
+        bool primary_server_changed = false;
+
+        auto keep_alive = [&logger, &socket_instance, &discovery_service, &last_keep_alive_msg, &received_im_alive, &is_server_alive, &election, &primary_server_changed]()
         {
-            continue;
-        }
-
-        auto message = socket_instance.receive();
-
-        std::string data = "";
-        std::string client_ip = "";
-        bool is_message_valid = message.is_valid;
-
-        if (message.is_valid)
-        {
-            data = message.data;
-            client_ip = inet_ntoa(message.sender_addr.sin_addr);
-        }
-
-        // Callback para processar mensagens recebidas em uma thread separada
-        auto process_message = [&last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip, &election]()
-        {
-            if (discovery_service.is_primary_server())
+            socket_instance.set_timeout(10);
+            while (!discovery_service.is_primary_server() && is_server_alive)
             {
-                if (!is_message_valid)
-                {
-                    return;
-                }
+                last_keep_alive_msg = std::chrono::system_clock::now();
+                // logger.debug("Send keep alive message");
+                socket_instance.send_to_server(Discovery::KEEP_ALIVE_MESSAGE);
 
-                if (processing_service.is_request_message(data))
-                {
-                    auto params = Utils::parse_message(data);
+                received_im_alive.wait();
 
-                    if (params.fields_count < 3)
-                    {
-                        logger.error("Invalid request message: " + data);
-                        return;
-                    }
-
-                    int request_id = std::stoi(params.fields[1]);
-                    int number = std::stoi(params.fields[2]);
-
-                    processing_service.process_request(client_ip, request_id, number);
-                    return;
-                }
-
-                if (discovery_service.is_keep_alive_message(data))
-                {
-                    // logger.debug("Keep alive message received");
-                    discovery_service.im_alive(client_ip);
-                    return;
-                }
-
-                if (discovery_service.is_server_discovery_message(data))
-                {
-                    logger.debug("Server discovery message received");
-                    discovery_service.process_server_discovery(client_ip);
-                    return;
-                }
-
-                if (discovery_service.is_client_discovery_message(data))
-                {
-                    discovery_service.respond(client_ip);
-                    client_map.add_client(client_ip);
-                    return;
-                }
-
-                if (processing_service.is_exit_message(data))
-                {
-                    processing_service.handle_exit_message(client_ip);
-                    return;
-                }
+                // logger.debug("Im alive message received");
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
             }
-            else
+
+            if (!discovery_service.is_primary_server())
             {
-                if (!is_message_valid)
-                {
-                    // Se a última mensagem de IM_ALIVE foi recebida antes da última mensagem de KEEP_ALIVE,
-                    // significa que o servidor está morto
-                    auto now = std::chrono::system_clock::now();
-                    if (last_im_alive_msg < last_keep_alive_msg && now - last_keep_alive_msg > std::chrono::milliseconds(10))
-                    {
-                        is_server_alive = false;
-                        received_im_alive.signal();
-                    }
+                logger.debug("Server is dead");
 
-                    return;
-                }
-
-                if (discovery_service.is_im_alive_message(data))
+                auto on_server_elected = [&logger, &discovery_service, &primary_server_changed](std::string ip)
                 {
-                    last_im_alive_msg = std::chrono::system_clock::now();
-                    // logger.debug("Im alive message received in processing thread");
-                    received_im_alive.signal();
-                }
+                    logger.debug("KEEP ALIVE THREAD: Server " + ip + " elected");
+                    discovery_service.set_primary_server(ip);
+                    primary_server_changed = true;
+                };
 
-                if (processing_service.is_state_update_message(data))
+                auto on_self_elected = [&logger, &discovery_service, &primary_server_changed]()
                 {
-                    processing_service.handle_state_update(data);
-                    return;
-                }
+                    logger.debug("KEEP ALIVE THREAD: I'm the coordinator");
+                    discovery_service.set_self_primary_server();
+                    primary_server_changed = true;
+                };
 
-                if (discovery_service.is_update_server_list_message(data))
-                {
-                    discovery_service.handle_update_server_list_message(data);
-                    return;
-                }
-
-                if (election.is_election_message(data))
-                {
-                    election.handle_election_message(client_ip);
-                    return;
-                }
-
-                if (election.is_election_coordinator_message(data))
-                {
-                    election.handle_election_coordinator_message(client_ip);
-                    return;
-                }
+                election.start_election(on_server_elected, on_self_elected);
             }
         };
 
-        // Cria uma thread para processar a mensagem
-        std::thread(process_message).detach();
+        std::thread(keep_alive).detach();
+
+        while (!primary_server_changed)
+        {
+            if (election.is_active())
+            {
+                continue;
+            }
+
+            auto message = socket_instance.receive();
+
+            std::string data = "";
+            std::string client_ip = "";
+            bool is_message_valid = message.is_valid;
+
+            if (message.is_valid)
+            {
+                data = message.data;
+                client_ip = inet_ntoa(message.sender_addr.sin_addr);
+            }
+
+            // Callback para processar mensagens recebidas em uma thread separada
+            auto process_message = [&last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip, &election, &primary_server_changed]()
+            {
+                if (discovery_service.is_primary_server())
+                {
+                    if (!is_message_valid)
+                    {
+                        return;
+                    }
+
+                    if (processing_service.is_request_message(data))
+                    {
+                        auto params = Utils::parse_message(data);
+
+                        if (params.fields_count < 3)
+                        {
+                            logger.error("Invalid request message: " + data);
+                            return;
+                        }
+
+                        int request_id = std::stoi(params.fields[1]);
+                        int number = std::stoi(params.fields[2]);
+
+                        processing_service.process_request(client_ip, request_id, number);
+                        return;
+                    }
+
+                    if (discovery_service.is_keep_alive_message(data))
+                    {
+                        logger.debug("Keep alive message received");
+                        discovery_service.im_alive(client_ip);
+                        return;
+                    }
+
+                    if (discovery_service.is_server_discovery_message(data))
+                    {
+                        logger.debug("Server discovery message received");
+                        discovery_service.process_server_discovery(client_ip);
+                        return;
+                    }
+
+                    if (discovery_service.is_client_discovery_message(data))
+                    {
+                        discovery_service.respond(client_ip);
+                        client_map.add_client(client_ip);
+                        return;
+                    }
+
+                    if (processing_service.is_exit_message(data))
+                    {
+                        processing_service.handle_exit_message(client_ip);
+                        return;
+                    }
+                }
+                else
+                {
+                    if (!is_message_valid)
+                    {
+                        // Se a última mensagem de IM_ALIVE foi recebida antes da última mensagem de KEEP_ALIVE,
+                        // significa que o servidor está morto
+                        auto now = std::chrono::system_clock::now();
+                        if (last_im_alive_msg < last_keep_alive_msg && now - last_keep_alive_msg > std::chrono::milliseconds(10))
+                        {
+                            is_server_alive = false;
+                            received_im_alive.signal();
+                        }
+
+                        return;
+                    }
+
+                    if (discovery_service.is_im_alive_message(data))
+                    {
+                        last_im_alive_msg = std::chrono::system_clock::now();
+                        // logger.debug("Im alive message received in processing thread");
+                        received_im_alive.signal();
+                    }
+
+                    if (processing_service.is_state_update_message(data))
+                    {
+                        processing_service.handle_state_update(data);
+                        return;
+                    }
+
+                    if (discovery_service.is_update_server_list_message(data))
+                    {
+                        discovery_service.handle_update_server_list_message(data);
+                        return;
+                    }
+
+                    if (election.is_election_message(data))
+                    {
+                        auto on_server_elected = [&logger, &discovery_service, &primary_server_changed](std::string ip)
+                        {
+                            logger.debug("MAIN THREAD: Server " + ip + " elected");
+                            discovery_service.set_primary_server(ip);
+                            primary_server_changed = true;
+                        };
+
+                        auto on_self_elected = [&logger, &discovery_service, &primary_server_changed]()
+                        {
+                            logger.debug("MAIN THREAD: I'm the coordinator");
+                            discovery_service.set_self_primary_server();
+                            primary_server_changed = true;
+                        };
+
+                        election.handle_election_message(client_ip, on_server_elected, on_self_elected);
+                        return;
+                    }
+
+                    if (election.is_election_coordinator_message(data))
+                    {
+                        election.handle_election_coordinator_message(client_ip);
+                        return;
+                    }
+                }
+            };
+
+            // Cria uma thread para processar a mensagem
+            std::thread(process_message).detach();
+        }
+
+        logger.debug("Primary server changed, will restart loop");
     }
 
     return 0;
