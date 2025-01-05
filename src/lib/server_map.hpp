@@ -82,6 +82,25 @@ namespace ServerMap
     {
       return server_map;
     }
+
+    void iterate(std::function<void(std::pair<std::string, int>)> callback)
+    {
+      for (auto it = server_map.begin(); it != server_map.end(); it++)
+      {
+        callback(std::pair<std::string, int>(it->first, it->second));
+      }
+    }
+
+    void iterate_higher_priority(std::function<void(std::pair<std::string, int>)> callback)
+    {
+      for (auto it = server_map.begin(); it != server_map.end(); it++)
+      {
+        if (it->second < server_id)
+        {
+          callback(std::pair<std::string, int>(it->first, it->second));
+        }
+      }
+    }
   };
 }
 

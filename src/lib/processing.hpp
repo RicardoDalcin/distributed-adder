@@ -31,13 +31,14 @@ namespace Processing
     private:
         SocketInstance::SocketInstance &socket_instance;
         ClientMap::ClientMap &client_map;
+        ServerMap::ServerMap &server_map;
         Logger::Logger logger;
         shared_state_t shared_state;
         pthread_mutex_t lock;
 
     public:
-        ProcessingServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map)
-            : socket_instance(socket_instance), client_map(client_map)
+        ProcessingServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map, ServerMap::ServerMap &server_map)
+            : socket_instance(socket_instance), client_map(client_map), server_map(server_map)
         {
             shared_state.num_reqs = 0;
             shared_state.total_sum = 0;
@@ -74,7 +75,7 @@ namespace Processing
             socket_instance.send_to_ip(STATE_UPDATE_MESSAGE + Utils::DELIMITER + str_client_map, client_ip);
         }
 
-        void process_request(std::string client_ip, int request_id, int number, ServerMap::ServerMap &server_map)
+        void process_request(std::string client_ip, int request_id, int number)
         {
             int partial_sum = 0;
             int num_requests = 0;
@@ -120,11 +121,12 @@ namespace Processing
             // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
 
-            std::map<std::string, int> map = server_map.get_map();
-            for (auto it = map.begin(); it != map.end(); it++)
+            auto update_iterator = [this](std::pair<std::string, int> data)
             {
-                send_state_update(it->first);
-            }
+                send_state_update(data.first);
+            };
+
+            server_map.iterate(update_iterator);
 
             pthread_mutex_unlock(&lock);
 

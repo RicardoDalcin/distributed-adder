@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     ServerMap::ServerMap server_map;
 
     Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map, server_map);
-    Processing::ProcessingServiceServer processing_service(socket_instance, client_map);
+    Processing::ProcessingServiceServer processing_service(socket_instance, client_map, server_map);
 
     discovery_service.find_primary_server();
 
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
                     int request_id = std::stoi(params.fields[1]);
                     int number = std::stoi(params.fields[2]);
 
-                    processing_service.process_request(client_ip, request_id, number, discovery_service.get_server_map());
+                    processing_service.process_request(client_ip, request_id, number);
                     return;
                 }
 
