@@ -175,6 +175,7 @@ namespace Processing
         SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;
         int request_id;
+        int tries = 0;
 
     public:
         ProcessingServiceClient(SocketInstance::SocketInstance &socket_instance)
@@ -193,7 +194,7 @@ namespace Processing
         {
         }
 
-        void send_request(int number)
+        bool send_request(int number)
         {
             // Envia a requisição ao servidor
             std::string message = REQUEST_MESSAGE + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(number);
@@ -256,11 +257,29 @@ namespace Processing
 
             if (timed_out)
             {
-                send_request(number);
-                return;
+                logger.debug("Timed out, will retry" + std::to_string(tries));
+                if (tries < 3)
+                {
+                    tries++;
+                    bool ok = send_request(number);
+
+                    if (ok)
+                    {
+                        tries = 0;
+                        return true;
+                    }
+
+                    return false;
+                }
+                else
+                {
+                    return false;
+                }
             }
 
+            tries = 0;
             request_id++;
+            return true;
         }
 
         void disconnect()

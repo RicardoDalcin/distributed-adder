@@ -204,6 +204,7 @@ namespace Discovery
     class DiscoveryServiceClient
     {
     private:
+        Logger::Logger logger;
         SocketInstance::SocketInstance &socket_instance;
 
     public:
@@ -216,6 +217,8 @@ namespace Discovery
         {
             std::string server_ip = "";
             bool wait_for_response = true;
+
+            logger.debug("Waiting for server ip");
 
             while (wait_for_response)
             {
@@ -232,6 +235,8 @@ namespace Discovery
                     server_ip = inet_ntoa(message.sender_addr.sin_addr);
                 }
             }
+
+            logger.debug("Server ip found: " + server_ip);
 
             return server_ip;
         }
