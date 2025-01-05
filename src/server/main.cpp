@@ -10,6 +10,7 @@
 #include "../lib/processing.hpp"
 #include "../lib/client_map.hpp"
 #include "../lib/server_map.hpp"
+#include "../lib/election.hpp"
 #include "../logger/logger.hpp"
 
 struct ClientEntry
@@ -77,7 +78,9 @@ int main(int argc, char *argv[])
     ClientMap::ClientMap client_map;
     ServerMap::ServerMap server_map;
 
-    Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map, server_map);
+    Election::Election election(socket_instance, client_map, server_map);
+
+    Discovery::DiscoveryServiceServer discovery_service(socket_instance, client_map, server_map, election);
     Processing::ProcessingServiceServer processing_service(socket_instance, client_map, server_map);
 
     discovery_service.find_primary_server();
@@ -89,7 +92,7 @@ int main(int argc, char *argv[])
     bool is_server_alive = true;
     Semaphore received_im_alive(0);
 
-    auto keep_alive = [&logger, &socket_instance, &discovery_service, &last_keep_alive_msg, &received_im_alive, &is_server_alive]()
+    auto keep_alive = [&logger, &socket_instance, &discovery_service, &last_keep_alive_msg, &received_im_alive, &is_server_alive, &election]()
     {
         socket_instance.set_timeout(10);
         while (!discovery_service.is_primary_server() && is_server_alive)
@@ -104,13 +107,22 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
-        logger.debug("Server is dead");
+        if (!discovery_service.is_primary_server())
+        {
+            logger.debug("Server is dead");
+            election.start_election();
+        }
     };
 
     std::thread(keep_alive).detach();
 
     while (true)
     {
+        if (election.is_active())
+        {
+            continue;
+        }
+
         auto message = socket_instance.receive();
 
         std::string data = "";
@@ -124,7 +136,7 @@ int main(int argc, char *argv[])
         }
 
         // Callback para processar mensagens recebidas em uma thread separada
-        auto process_message = [&last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip]()
+        auto process_message = [&last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip, &election]()
         {
             if (discovery_service.is_primary_server())
             {
@@ -203,6 +215,24 @@ int main(int argc, char *argv[])
                 if (processing_service.is_state_update_message(data))
                 {
                     processing_service.handle_state_update(data);
+                    return;
+                }
+
+                if (discovery_service.is_update_server_list_message(data))
+                {
+                    discovery_service.handle_update_server_list_message(data);
+                    return;
+                }
+
+                if (election.is_election_message(data))
+                {
+                    election.handle_election_message(client_ip);
+                    return;
+                }
+
+                if (election.is_election_coordinator_message(data))
+                {
+                    election.handle_election_coordinator_message(client_ip);
                     return;
                 }
             }

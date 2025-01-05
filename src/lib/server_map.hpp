@@ -30,6 +30,17 @@ namespace ServerMap
       return server_id;
     }
 
+    int get_id_from_ip(std::string ip)
+    {
+      auto it = server_map.find(ip);
+      if (it != server_map.end())
+      {
+        return it->second;
+      }
+
+      return -1;
+    }
+
     void set_id(int id)
     {
       server_id = id;
@@ -87,7 +98,10 @@ namespace ServerMap
     {
       for (auto it = server_map.begin(); it != server_map.end(); it++)
       {
-        callback(std::pair<std::string, int>(it->first, it->second));
+        if (it->second != server_id)
+        {
+          callback(std::pair<std::string, int>(it->first, it->second));
+        }
       }
     }
 

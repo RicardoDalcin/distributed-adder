@@ -12,6 +12,7 @@
 #include "../socket/socket.hpp"
 #include "../lib/client_map.hpp"
 #include "../lib/server_map.hpp"
+#include "../lib/election.hpp"
 
 namespace Discovery
 {
@@ -22,10 +23,7 @@ namespace Discovery
     const std::string IM_ALIVE_MESSAGE = "IM_ALIVE";
 
     const std::string DISCOVERY_RESPONSE = "DISCOVERY_RESPONSE";
-
-    const std::string ELECTION_START_MESSAGE = "ELECTION";
-    const std::string ELECTION_ANSWER_MESSAGE = "ELECTION_ANSWER";
-    const std::string ELECTION_COORDINATOR_MESSAGE = "ELECTION_COORDINATOR";
+    const std::string UPDATE_SERVER_LIST_MESSAGE = "UPDATE_SERVER_LIST";
 
     enum class ServerType
     {
@@ -46,13 +44,15 @@ namespace Discovery
         SocketInstance::SocketInstance &socket_instance;
         ClientMap::ClientMap &client_map;
         ServerMap::ServerMap &server_map;
+        Election::Election &election;
         std::string primary_server_ip;
 
     public:
-        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map, ServerMap::ServerMap &server_map)
+        DiscoveryServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map, ServerMap::ServerMap &server_map, Election::Election &election)
             : socket_instance(socket_instance),
               client_map(client_map),
-              server_map(server_map)
+              server_map(server_map),
+              election(election)
         {
         }
 
@@ -117,36 +117,7 @@ namespace Discovery
             if (server_type == ServerType::Replica)
             {
                 socket_instance.set_server_ip(primary_server_ip);
-                // keep_alive();
             }
-        }
-
-        void keep_alive()
-        {
-            auto keep_alive_thread = [this]()
-            {
-                bool server_alive = true;
-                socket_instance.set_timeout(REQUEST_TIMEOUT_MS);
-
-                while (server_alive)
-                {
-                    socket_instance.send_to_server(KEEP_ALIVE_MESSAGE);
-                    auto message = socket_instance.wait_for_message(IM_ALIVE_MESSAGE, REQUEST_TIMEOUT_MS);
-
-                    if (message.result == SocketInstance::WaitMessageResult::Timeout)
-                    {
-                        server_alive = false;
-                        continue;
-                    }
-
-                    // Espera 500ms
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                }
-
-                logger.error("SERVER IS DEAD");
-            };
-
-            std::thread(keep_alive_thread).detach();
         }
 
         bool is_im_alive_message(std::string message)
@@ -186,12 +157,34 @@ namespace Discovery
             socket_instance.send_to_ip(message, client_ip);
         }
 
+        bool is_update_server_list_message(std::string message)
+        {
+            return Utils::starts_with(message, UPDATE_SERVER_LIST_MESSAGE + Utils::DELIMITER);
+        }
+
         void process_server_discovery(std::string client_ip)
         {
             logger.debug("Processing server discovery");
             int id = server_map.add_server(client_ip);
+
             logger.debug("Added server " + client_ip + " with id " + std::to_string(id));
+            update_server_list();
             respond_server(client_ip, id);
+        }
+
+        void update_server_list()
+        {
+            logger.debug("Updating server list");
+            std::string message = UPDATE_SERVER_LIST_MESSAGE + Utils::DELIMITER + server_map.to_string();
+            server_map.iterate([this, message](std::pair<std::string, int> data)
+                               { socket_instance.send_to_ip(message, data.first); });
+        }
+
+        void handle_update_server_list_message(std::string message)
+        {
+            std::string str_server_map = Utils::parse_message(message).fields[1];
+            server_map.load_from_string(str_server_map);
+            logger.debug("Server map updated: " + server_map.to_string());
         }
     };
 
