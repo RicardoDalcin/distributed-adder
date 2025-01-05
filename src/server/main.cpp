@@ -95,12 +95,12 @@ int main(int argc, char *argv[])
         while (!discovery_service.is_primary_server() && is_server_alive)
         {
             last_keep_alive_msg = std::chrono::system_clock::now();
-            logger.debug("Send keep alive message");
+            // logger.debug("Send keep alive message");
             socket_instance.send_to_server(Discovery::KEEP_ALIVE_MESSAGE);
 
             received_im_alive.wait();
 
-            logger.debug("Im alive message received");
+            // logger.debug("Im alive message received");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 
                 if (discovery_service.is_keep_alive_message(data))
                 {
-                    logger.debug("Keep alive message received");
+                    // logger.debug("Keep alive message received");
                     discovery_service.im_alive(client_ip);
                     return;
                 }
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
                 if (discovery_service.is_im_alive_message(data))
                 {
                     last_im_alive_msg = std::chrono::system_clock::now();
-                    logger.debug("Im alive message received in processing thread");
+                    // logger.debug("Im alive message received in processing thread");
                     received_im_alive.signal();
                 }
 
