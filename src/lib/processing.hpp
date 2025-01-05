@@ -24,6 +24,7 @@ namespace Processing
     const std::string REQUEST_MESSAGE = "REQUEST";
     const std::string REQUEST_ACK = "REQUEST_ACK";
     const std::string STATE_UPDATE_MESSAGE = "STATE_UPDATE";
+    const std::string STATE_UPDATE_ACK = "STATE_UPDATE_ACK";
     const std::string EXIT_MESSAGE = "EXIT";
 
     class ProcessingServiceServer
@@ -35,6 +36,7 @@ namespace Processing
         Logger::Logger logger;
         shared_state_t shared_state;
         pthread_mutex_t lock;
+        bool is_waiting_state_responses = false;
 
     public:
         ProcessingServiceServer(SocketInstance::SocketInstance &socket_instance, ClientMap::ClientMap &client_map, ServerMap::ServerMap &server_map)
@@ -121,12 +123,15 @@ namespace Processing
             // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
 
-            auto update_iterator = [this](std::pair<std::string, int> data)
-            {
-                send_state_update(data.first);
-            };
+            // auto update_iterator = [this](std::pair<std::string, int> data)
+            // {
+            //     send_state_update(data.first);
+            //     socket_instance.wait_for_message(STATE_UPDATE_ACK, 30);
+            // };
 
-            server_map.iterate(update_iterator);
+            // is_waiting_state_responses = true;
+            // server_map.iterate(update_iterator);
+            // is_waiting_state_responses = false;
 
             pthread_mutex_unlock(&lock);
 
@@ -154,6 +159,15 @@ namespace Processing
 
             client_map.for_each([this](std::string client_ip, ClientMap::ClientEntry client_entry)
                                 { logger.debug("Client " + client_ip + " last_req: " + std::to_string(client_entry.last_req) + " last_sum: " + std::to_string(client_entry.last_sum)); });
+
+            // respond_state_update();
+        }
+
+        void respond_state_update()
+        {
+            logger.debug("Responding state update");
+            std::string message = STATE_UPDATE_ACK + Utils::DELIMITER;
+            socket_instance.send_to_server(message);
         }
 
         bool is_exit_message(std::string message)
@@ -170,7 +184,7 @@ namespace Processing
     class ProcessingServiceClient
     {
     private:
-        const int REQUEST_TIMEOUT_MS = 10;
+        const int REQUEST_TIMEOUT_MS = 50;
 
         SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;

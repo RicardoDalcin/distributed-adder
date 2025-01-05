@@ -92,23 +92,28 @@ int main(int argc, char *argv[])
         auto last_keep_alive_msg = std::chrono::system_clock::now();
         auto last_im_alive_msg = std::chrono::system_clock::now();
         bool is_server_alive = true;
+        bool alive_failed = false;
         Semaphore received_im_alive(0);
 
         bool primary_server_changed = false;
+        int keep_alive_tries = 0;
 
-        auto keep_alive = [&logger, &socket_instance, &discovery_service, &last_keep_alive_msg, &received_im_alive, &is_server_alive, &election, &primary_server_changed]()
+        auto keep_alive = [&alive_failed, &keep_alive_tries, &logger, &socket_instance, &discovery_service, &last_keep_alive_msg, &received_im_alive, &is_server_alive, &election, &primary_server_changed]()
         {
-            socket_instance.set_timeout(10);
+            socket_instance.set_timeout(100);
             while (!discovery_service.is_primary_server() && is_server_alive)
             {
                 last_keep_alive_msg = std::chrono::system_clock::now();
-                // logger.debug("Send keep alive message");
+                keep_alive_tries++;
                 socket_instance.send_to_server(Discovery::KEEP_ALIVE_MESSAGE);
 
                 received_im_alive.wait();
 
-                // logger.debug("Im alive message received");
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (is_server_alive && !alive_failed)
+                {
+                    keep_alive_tries = 0;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                }
             }
 
             if (!discovery_service.is_primary_server())
@@ -155,7 +160,7 @@ int main(int argc, char *argv[])
             }
 
             // Callback para processar mensagens recebidas em uma thread separada
-            auto process_message = [&last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip, &election, &primary_server_changed]()
+            auto process_message = [&alive_failed, &keep_alive_tries, &last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip, &election, &primary_server_changed]()
             {
                 if (discovery_service.is_primary_server())
                 {
@@ -183,14 +188,12 @@ int main(int argc, char *argv[])
 
                     if (discovery_service.is_keep_alive_message(data))
                     {
-                        logger.debug("Keep alive message received");
                         discovery_service.im_alive(client_ip);
                         return;
                     }
 
                     if (discovery_service.is_server_discovery_message(data))
                     {
-                        logger.debug("Server discovery message received");
                         discovery_service.process_server_discovery(client_ip);
                         return;
                     }
@@ -215,9 +218,17 @@ int main(int argc, char *argv[])
                         // Se a última mensagem de IM_ALIVE foi recebida antes da última mensagem de KEEP_ALIVE,
                         // significa que o servidor está morto
                         auto now = std::chrono::system_clock::now();
-                        if (last_im_alive_msg < last_keep_alive_msg && now - last_keep_alive_msg > std::chrono::milliseconds(10))
+                        if (last_im_alive_msg < last_keep_alive_msg && now - last_keep_alive_msg > std::chrono::milliseconds(2000))
                         {
-                            is_server_alive = false;
+                            if (keep_alive_tries >= 3)
+                            {
+                                is_server_alive = false;
+                            }
+                            else
+                            {
+                                alive_failed = true;
+                            }
+
                             received_im_alive.signal();
                         }
 

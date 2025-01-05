@@ -1,18 +1,12 @@
-# Use Alpine as a base image
-FROM alpine:latest
+FROM ubuntu:latest
 
-# Install build dependencies (make, g++, etc.)
-RUN apk update && \
-    apk add --no-cache \
-    build-base \
-    make \
-    g++
+# Install necessary dependencies
+RUN apt update && apt install -y g++ gcc make
 
-# Set the working directory inside the container
+# Set working directory
 WORKDIR /workspace
 
 # Expose the working directory as a volume
 VOLUME ["/workspace"]
 
-# Default command to run bash
-CMD ["/bin/sh"]
+CMD ["/bin/bash"]

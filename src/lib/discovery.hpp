@@ -35,7 +35,7 @@ namespace Discovery
     class DiscoveryServiceServer
     {
     private:
-        const int REQUEST_TIMEOUT_MS = 10;
+        const int REQUEST_TIMEOUT_MS = 30;
 
         ServerType server_type = ServerType::Unknown;
 
