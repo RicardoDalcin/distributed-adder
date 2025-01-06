@@ -126,8 +126,13 @@ namespace ServerMap
 
     void disable_higher_priority_servers()
     {
-      iterate_higher_priority([this](std::pair<std::string, server_t> data)
-                              { data.second.is_alive = false; });
+      for (auto it = server_map.begin(); it != server_map.end(); it++)
+      {
+        if (it->second.id < server_id)
+        {
+          it->second.is_alive = false;
+        }
+      }
     }
   };
 }
