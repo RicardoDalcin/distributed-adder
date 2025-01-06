@@ -155,7 +155,7 @@ namespace Discovery
 
         void im_alive(std::string client_ip)
         {
-            // logger.debug("Sending im alive message to " + client_ip);
+            logger.debug("Sending im alive message to " + client_ip);
             socket_instance.send_to_ip(IM_ALIVE_MESSAGE, client_ip);
         }
 

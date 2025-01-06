@@ -130,12 +130,12 @@ namespace Processing
             auto update_iterator = [this, &partial_sum, &num_requests](std::pair<std::string, int> data)
             {
                 send_state_update(data.first, partial_sum, num_requests);
-                // socket_instance.wait_for_message(STATE_UPDATE_ACK, 30);
+                socket_instance.wait_for_message(STATE_UPDATE_ACK, 50);
             };
 
-            // is_waiting_state_responses = true;
+            is_waiting_state_responses = true;
             server_map.iterate(update_iterator);
-            // is_waiting_state_responses = false;
+            is_waiting_state_responses = false;
 
             pthread_mutex_unlock(&lock);
 
@@ -193,7 +193,7 @@ namespace Processing
     class ProcessingServiceClient
     {
     private:
-        const int REQUEST_TIMEOUT_MS = 50;
+        const int REQUEST_TIMEOUT_MS = 200;
 
         SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;
