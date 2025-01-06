@@ -31,14 +31,14 @@ public:
         std::unique_lock<std::mutex> lock(mtx);
         cv.wait(lock, [this]()
                 { return count > 0; });
-        --count;
+        count = 0;
     }
 
     // Signals the semaphore, allowing one waiting thread to proceed
     void signal()
     {
         std::unique_lock<std::mutex> lock(mtx);
-        ++count;
+        count = 1;
         cv.notify_one();
     }
 
@@ -112,13 +112,14 @@ int main(int argc, char *argv[])
                 if (is_server_alive && !alive_failed)
                 {
                     keep_alive_tries = 0;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 }
             }
 
             if (!discovery_service.is_primary_server())
             {
                 logger.debug("Server is dead");
+                logger.log("KEEP ALIVE THREAD: Server is dead");
 
                 auto on_server_elected = [&logger, &discovery_service, &primary_server_changed](std::string ip)
                 {
@@ -244,6 +245,7 @@ int main(int argc, char *argv[])
 
                     if (processing_service.is_state_update_message(data))
                     {
+                        received_im_alive.signal();
                         processing_service.handle_state_update(data);
                         return;
                     }

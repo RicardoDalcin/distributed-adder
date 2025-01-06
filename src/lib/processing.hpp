@@ -193,7 +193,7 @@ namespace Processing
     class ProcessingServiceClient
     {
     private:
-        const int REQUEST_TIMEOUT_MS = 200;
+        const int REQUEST_TIMEOUT_MS = 500;
 
         SocketInstance::SocketInstance &socket_instance;
         Logger::Logger logger;

@@ -234,6 +234,10 @@ namespace Discovery
                     wait_for_response = false;
                     server_ip = inet_ntoa(message.sender_addr.sin_addr);
                 }
+                else
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                }
             }
 
             logger.debug("Server ip found: " + server_ip);

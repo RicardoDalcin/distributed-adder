@@ -53,6 +53,23 @@ int main(int argc, char *argv[])
     bool finished = false;
     int timed_out_number = -1;
 
+    signal_handler_callback = [&processing_service, &finished](int signo)
+    {
+        if (signo == SIGINT)
+        {
+            // Envia mensagem de exit para o servidor caso receba um SIGINT
+            finished = true;
+            processing_service.disconnect();
+            sigaction(SIGINT, &old_action, NULL);
+            kill(0, SIGINT);
+        }
+    };
+
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = signal_handler;
+    sigaction(SIGINT, &action, &old_action);
+
     while (!finished)
     {
         logger.debug("Inner loop started");
@@ -71,22 +88,6 @@ int main(int argc, char *argv[])
             logger.client_hello(server_ip);
         }
         socket_instance.set_server_ip(server_ip);
-
-        signal_handler_callback = [&processing_service](int signo)
-        {
-            if (signo == SIGINT)
-            {
-                // Envia mensagem de exit para o servidor caso receba um SIGINT
-                processing_service.disconnect();
-                sigaction(SIGINT, &old_action, NULL);
-                kill(0, SIGINT);
-            }
-        };
-
-        struct sigaction action;
-        memset(&action, 0, sizeof(action));
-        action.sa_handler = signal_handler;
-        sigaction(SIGINT, &action, &old_action);
 
         if (timed_out_number != -1)
         {
