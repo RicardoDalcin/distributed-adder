@@ -68,13 +68,13 @@ namespace Processing
             return Utils::starts_with(message, STATE_UPDATE_MESSAGE + Utils::DELIMITER);
         }
 
-        void send_state_update(std::string client_ip)
+        void send_state_update(std::string client_ip, int partial_sum, int num_requests)
         {
             std::string str_client_map = client_map.to_string();
 
             logger.debug("Sending state update to " + client_ip);
 
-            socket_instance.send_to_ip(STATE_UPDATE_MESSAGE + Utils::DELIMITER + str_client_map, client_ip);
+            socket_instance.send_to_ip(STATE_UPDATE_MESSAGE + Utils::DELIMITER + str_client_map + Utils::DELIMITER + std::to_string(partial_sum) + Utils::DELIMITER + std::to_string(num_requests), client_ip);
         }
 
         void process_request(std::string client_ip, int request_id, int number)
@@ -87,6 +87,7 @@ namespace Processing
 
             if (client == nullptr)
             {
+                logger.debug("Client not found: " + client_ip);
                 pthread_mutex_unlock(&lock);
                 return;
             }
@@ -94,6 +95,7 @@ namespace Processing
             // Verifica se o ID da requisição é o esperado para o cliente
             if (request_id != client->last_req + 1)
             {
+                logger.debug("Invalid request id: " + std::to_string(request_id) + " expected: " + std::to_string(client->last_req + 1));
                 int last_request = client->last_req;
                 int partial_sum = shared_state.total_sum;
                 int num_requests = shared_state.num_reqs;
@@ -112,6 +114,8 @@ namespace Processing
                 return;
             }
 
+            logger.debug("Request id ok, will process");
+
             // Atualiza o estado compartilhado
             shared_state.total_sum += number;
             shared_state.num_reqs++;
@@ -123,14 +127,14 @@ namespace Processing
             // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
 
-            // auto update_iterator = [this](std::pair<std::string, int> data)
-            // {
-            //     send_state_update(data.first);
-            //     socket_instance.wait_for_message(STATE_UPDATE_ACK, 30);
-            // };
+            auto update_iterator = [this, &partial_sum, &num_requests](std::pair<std::string, int> data)
+            {
+                send_state_update(data.first, partial_sum, num_requests);
+                // socket_instance.wait_for_message(STATE_UPDATE_ACK, 30);
+            };
 
             // is_waiting_state_responses = true;
-            // server_map.iterate(update_iterator);
+            server_map.iterate(update_iterator);
             // is_waiting_state_responses = false;
 
             pthread_mutex_unlock(&lock);
@@ -160,6 +164,11 @@ namespace Processing
             client_map.for_each([this](std::string client_ip, ClientMap::ClientEntry client_entry)
                                 { logger.debug("Client " + client_ip + " last_req: " + std::to_string(client_entry.last_req) + " last_sum: " + std::to_string(client_entry.last_sum)); });
 
+            int partial_sum = std::stoi(Utils::parse_message(message).fields[2]);
+            int num_requests = std::stoi(Utils::parse_message(message).fields[3]);
+
+            shared_state.total_sum = partial_sum;
+            shared_state.num_reqs = num_requests;
             // respond_state_update();
         }
 
@@ -212,6 +221,7 @@ namespace Processing
         {
             // Envia a requisição ao servidor
             std::string message = REQUEST_MESSAGE + Utils::DELIMITER + std::to_string(request_id) + Utils::DELIMITER + std::to_string(number);
+            logger.debug("Sending request to server: " + message + " ip: " + socket_instance.get_server_ip());
             socket_instance.send_to_server(message);
 
             bool wait_for_response = true;

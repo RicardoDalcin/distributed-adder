@@ -67,6 +67,7 @@ namespace SocketInstance
         int send_to_server(const std::string message);
         int send_broadcast(const std::string message);
 
+        std::string get_server_ip();
         void set_server_ip(const std::string server_ip);
 
         received_message_t receive();
@@ -243,6 +244,11 @@ namespace SocketInstance
         addr.sin_port = htons(this->port);
 
         return send_to(message, addr);
+    }
+
+    std::string SocketInstance::get_server_ip()
+    {
+        return inet_ntoa(server_addr.sin_addr);
     }
 
     int SocketInstance::send_to_server(const std::string message)
