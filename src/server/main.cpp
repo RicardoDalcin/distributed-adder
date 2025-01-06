@@ -219,9 +219,9 @@ int main(int argc, char *argv[])
                         // Se a última mensagem de IM_ALIVE foi recebida antes da última mensagem de KEEP_ALIVE,
                         // significa que o servidor está morto
                         auto now = std::chrono::system_clock::now();
-                        if (last_im_alive_msg < last_keep_alive_msg && now - last_keep_alive_msg > std::chrono::milliseconds(2000))
+                        if (last_im_alive_msg < last_keep_alive_msg && now - last_keep_alive_msg > std::chrono::milliseconds(1000))
                         {
-                            if (keep_alive_tries >= 3)
+                            if (keep_alive_tries >= 2)
                             {
                                 is_server_alive = false;
                             }
