@@ -127,10 +127,13 @@ namespace Processing
             // Atualiza a última requisição processada do cliente
             client_map.new_client_request(client_ip, partial_sum);
 
-            auto update_iterator = [this, &partial_sum, &num_requests](std::pair<std::string, int> data)
+            auto update_iterator = [this, &partial_sum, &num_requests](std::pair<std::string, ServerMap::server_t> data)
             {
-                send_state_update(data.first, partial_sum, num_requests);
-                socket_instance.wait_for_message(STATE_UPDATE_ACK, 50);
+                if (data.second.is_alive)
+                {
+                    send_state_update(data.first, partial_sum, num_requests);
+                    socket_instance.wait_for_message(STATE_UPDATE_ACK, 50);
+                }
             };
 
             is_waiting_state_responses = true;

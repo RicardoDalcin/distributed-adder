@@ -7,6 +7,12 @@
 
 namespace ServerMap
 {
+  struct server
+  {
+    int id;
+    bool is_alive;
+  } typedef server_t;
+
   class ServerMap
   {
   private:
@@ -14,7 +20,7 @@ namespace ServerMap
 
     int server_id = 0;
     int aux_server_id = 1;
-    std::map<std::string, int> server_map;
+    std::map<std::string, server_t> server_map;
 
   public:
     ServerMap()
@@ -35,7 +41,7 @@ namespace ServerMap
       auto it = server_map.find(ip);
       if (it != server_map.end())
       {
-        return it->second;
+        return it->second.id;
       }
 
       return -1;
@@ -49,7 +55,11 @@ namespace ServerMap
     int add_server(std::string server_ip)
     {
       int new_server_id = aux_server_id++;
-      server_map.insert(std::pair<std::string, int>(server_ip, new_server_id));
+      server_t new_server;
+      new_server.id = new_server_id;
+      new_server.is_alive = true;
+
+      server_map.insert(std::pair<std::string, server_t>(server_ip, new_server));
       return new_server_id;
     }
 
@@ -59,7 +69,7 @@ namespace ServerMap
 
       for (auto it = server_map.begin(); it != server_map.end(); it++)
       {
-        str += it->first + Utils::DATA_DELIMITER + std::to_string(it->second) + Utils::DATA_DELIMITER;
+        str += it->first + Utils::DATA_DELIMITER + std::to_string(it->second.id) + Utils::DATA_DELIMITER;
       }
 
       return str;
@@ -84,36 +94,40 @@ namespace ServerMap
       {
         std::string address = tokens[i];
         int server_id = std::stoi(tokens[i + 1]);
+        server_t server;
+        server.id = server_id;
+        server.is_alive = true;
 
-        server_map.insert(std::pair<std::string, int>(address, server_id));
+        server_map.insert(std::pair<std::string, server_t>(address, server));
       }
     }
 
-    std::map<std::string, int> get_map()
-    {
-      return server_map;
-    }
-
-    void iterate(std::function<void(std::pair<std::string, int>)> callback)
+    void iterate(std::function<void(std::pair<std::string, server_t>)> callback)
     {
       for (auto it = server_map.begin(); it != server_map.end(); it++)
       {
-        if (it->second != server_id)
+        if (it->second.id != server_id)
         {
-          callback(std::pair<std::string, int>(it->first, it->second));
+          callback(std::pair<std::string, server_t>(it->first, it->second));
         }
       }
     }
 
-    void iterate_higher_priority(std::function<void(std::pair<std::string, int>)> callback)
+    void iterate_higher_priority(std::function<void(std::pair<std::string, server_t>)> callback)
     {
       for (auto it = server_map.begin(); it != server_map.end(); it++)
       {
-        if (it->second < server_id)
+        if (it->second.id < server_id)
         {
-          callback(std::pair<std::string, int>(it->first, it->second));
+          callback(std::pair<std::string, server_t>(it->first, it->second));
         }
       }
+    }
+
+    void disable_higher_priority_servers()
+    {
+      iterate_higher_priority([this](std::pair<std::string, server_t> data)
+                              { data.second.is_alive = false; });
     }
   };
 }

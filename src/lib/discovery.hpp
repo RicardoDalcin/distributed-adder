@@ -189,7 +189,7 @@ namespace Discovery
         {
             logger.debug("Updating server list");
             std::string message = UPDATE_SERVER_LIST_MESSAGE + Utils::DELIMITER + server_map.to_string();
-            server_map.iterate([this, message](std::pair<std::string, int> data)
+            server_map.iterate([this, message](std::pair<std::string, ServerMap::server_t> data)
                                { socket_instance.send_to_ip(message, data.first); });
         }
 

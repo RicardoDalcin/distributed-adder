@@ -64,7 +64,7 @@ namespace Election
       is_election_running = true;
       logger.debug("Starting election");
       bool had_any_answer = false;
-      auto server_iterator = [this, &had_any_answer](std::pair<std::string, int> data)
+      auto server_iterator = [this, &had_any_answer](std::pair<std::string, ServerMap::server_t> data)
       {
         if (has_elected)
         {
@@ -91,6 +91,7 @@ namespace Election
       if (has_elected)
       {
         logger.debug("Election already finished");
+        logger.log("Election results are in, new coord is " + elected_server_ip);
         reset_state();
         on_server_elected(elected_server_ip);
         return;
@@ -100,9 +101,12 @@ namespace Election
       {
         logger.debug("No answer received, meaning I'm the coordinator!!!");
         last_election_result_timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-        server_map.iterate([this](std::pair<std::string, int> data)
+        server_map.iterate([this](std::pair<std::string, ServerMap::server_t> data)
                            { send_election_coordinator_message(data.first); });
 
+        server_map.disable_higher_priority_servers();
+
+        logger.log("I'm the coordinator!!!");
         reset_state();
         on_self_elected();
       }

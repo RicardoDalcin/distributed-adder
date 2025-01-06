@@ -145,6 +145,7 @@ int main(int argc, char *argv[])
         {
             if (election.is_active())
             {
+                logger.debug("Election is active, will wait");
                 continue;
             }
 
@@ -163,6 +164,15 @@ int main(int argc, char *argv[])
             // Callback para processar mensagens recebidas em uma thread separada
             auto process_message = [&alive_failed, &keep_alive_tries, &last_keep_alive_msg, &is_server_alive, &last_im_alive_msg, &is_message_valid, &received_im_alive, &logger, &discovery_service, &processing_service, &client_map, data, client_ip, &election, &primary_server_changed]()
             {
+                char *data_copy = new char[data.length() + 1];
+                strcpy(data_copy, data.c_str());
+
+                char *client_ip_copy = new char[client_ip.length() + 1];
+                strcpy(client_ip_copy, client_ip.c_str());
+
+                std::string data_copy_str(data_copy);
+                std::string client_ip_copy_str(client_ip_copy);
+
                 if (discovery_service.is_primary_server())
                 {
                     if (!is_message_valid)
@@ -170,45 +180,45 @@ int main(int argc, char *argv[])
                         return;
                     }
 
-                    if (processing_service.is_request_message(data))
+                    if (processing_service.is_request_message(data_copy_str))
                     {
-                        auto params = Utils::parse_message(data);
+                        auto params = Utils::parse_message(data_copy_str);
 
                         if (params.fields_count < 3)
                         {
-                            logger.error("Invalid request message: " + data);
+                            logger.error("Invalid request message: " + data_copy_str);
                             return;
                         }
 
                         int request_id = std::stoi(params.fields[1]);
                         int number = std::stoi(params.fields[2]);
 
-                        processing_service.process_request(client_ip, request_id, number);
+                        processing_service.process_request(client_ip_copy_str, request_id, number);
                         return;
                     }
 
-                    if (discovery_service.is_keep_alive_message(data))
+                    if (discovery_service.is_keep_alive_message(data_copy_str))
                     {
-                        discovery_service.im_alive(client_ip);
+                        discovery_service.im_alive(client_ip_copy_str);
                         return;
                     }
 
-                    if (discovery_service.is_server_discovery_message(data))
+                    if (discovery_service.is_server_discovery_message(data_copy_str))
                     {
-                        discovery_service.process_server_discovery(client_ip);
+                        discovery_service.process_server_discovery(client_ip_copy_str);
                         return;
                     }
 
-                    if (discovery_service.is_client_discovery_message(data))
+                    if (discovery_service.is_client_discovery_message(data_copy_str))
                     {
-                        discovery_service.respond(client_ip);
-                        client_map.add_client(client_ip);
+                        discovery_service.respond(client_ip_copy_str);
+                        client_map.add_client(client_ip_copy_str);
                         return;
                     }
 
-                    if (processing_service.is_exit_message(data))
+                    if (processing_service.is_exit_message(data_copy_str))
                     {
-                        processing_service.handle_exit_message(client_ip);
+                        processing_service.handle_exit_message(client_ip_copy_str);
                         return;
                     }
                 }
@@ -236,27 +246,29 @@ int main(int argc, char *argv[])
                         return;
                     }
 
-                    if (discovery_service.is_im_alive_message(data))
+                    logger.debug("Replica server received a message " + data_copy_str);
+
+                    if (discovery_service.is_im_alive_message(data_copy_str))
                     {
                         last_im_alive_msg = std::chrono::system_clock::now();
                         // logger.debug("Im alive message received in processing thread");
                         received_im_alive.signal();
                     }
 
-                    if (processing_service.is_state_update_message(data))
+                    if (processing_service.is_state_update_message(data_copy_str))
                     {
                         received_im_alive.signal();
-                        processing_service.handle_state_update(data);
+                        processing_service.handle_state_update(data_copy_str);
                         return;
                     }
 
-                    if (discovery_service.is_update_server_list_message(data))
+                    if (discovery_service.is_update_server_list_message(data_copy_str))
                     {
-                        discovery_service.handle_update_server_list_message(data);
+                        discovery_service.handle_update_server_list_message(data_copy_str);
                         return;
                     }
 
-                    if (election.is_election_message(data))
+                    if (election.is_election_message(data_copy_str))
                     {
                         auto on_server_elected = [&logger, &discovery_service, &primary_server_changed](std::string ip)
                         {
@@ -272,13 +284,13 @@ int main(int argc, char *argv[])
                             primary_server_changed = true;
                         };
 
-                        election.handle_election_message(client_ip, on_server_elected, on_self_elected);
+                        election.handle_election_message(client_ip_copy_str, on_server_elected, on_self_elected);
                         return;
                     }
 
-                    if (election.is_election_coordinator_message(data))
+                    if (election.is_election_coordinator_message(data_copy_str))
                     {
-                        election.handle_election_coordinator_message(client_ip);
+                        election.handle_election_coordinator_message(client_ip_copy_str);
                         return;
                     }
                 }
